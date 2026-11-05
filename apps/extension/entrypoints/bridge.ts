@@ -198,6 +198,8 @@ export default defineUnlistedScript(() => {
     if (!loopingRange) return;
     const wasPaused = loopWasPaused;
     if (studioLoopActive) {
+      dispatchStudioShortcut("I", "KeyI", true);
+      dispatchStudioShortcut("O", "KeyO", true);
       const loopButton = document.querySelector<HTMLButtonElement>(
         'button[aria-label="Enable loop playback"], button[aria-label="Disable loop playback"]',
       );
