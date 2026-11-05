@@ -54,7 +54,7 @@
   color-scheme: dark;
 }
 
-.fn-layer[data-theme="paper"] {
+:host([data-theme="paper"]) .fn-layer {
   --fn-bg0: oklch(0.955 0.005 70);
   --fn-surface: oklch(0.987 0.005 70);
   --fn-card: oklch(0.965 0.005 70);
@@ -344,13 +344,15 @@
   display: flex;
   min-height: 25px;
   min-width: 0;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 5px;
 }
 
 .fn-time-chip {
+  min-width: 0;
   padding: 3px 7px;
+  overflow: hidden;
   border: 1px solid var(--fn-accent-wash);
   border-radius: 7px;
   background: var(--fn-accent-wash);
@@ -359,6 +361,8 @@
   font-family: var(--fn-mono);
   font-variant-numeric: tabular-nums;
   font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .fn-time-chip:hover {
@@ -371,28 +375,26 @@
 }
 
 .fn-range-arrow {
+  flex: 0 0 auto;
   color: var(--fn-muted);
   font-size: 11px;
 }
 
-.fn-frame-chip {
-  margin-left: 3px;
-  color: var(--fn-muted);
-  font-family: var(--fn-mono);
-  font-size: 10px;
-  white-space: nowrap;
-}
-
-.fn-range-duration {
+.fn-note-meta {
   display: block;
+  min-width: 0;
   margin-top: 2px;
+  overflow: hidden;
   color: var(--fn-muted);
   font-family: var(--fn-mono);
   font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .fn-note-actions {
   display: flex;
+  flex: 0 0 auto;
   margin-left: auto;
   gap: 2px;
   opacity: 0.75;
@@ -813,6 +815,11 @@
 
 .fn-copy:hover {
   background: var(--fn-hover);
+}
+
+.fn-copy svg {
+  margin-right: 4px;
+  vertical-align: -3px;
 }
 
 .fn-footer p {
