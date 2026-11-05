@@ -524,8 +524,7 @@
   display: block;
   padding: 0;
   border: 0;
-  cursor: pointer;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .fn-marker-point {
@@ -546,7 +545,26 @@
   box-shadow: 0 0 8px rgba(255, 180, 91, 0.42);
 }
 
-.fn-marker-point:hover,
-.fn-marker-range:hover {
+.fn-marker-flag {
+  position: absolute;
+  z-index: 2;
+  display: block;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px 4px 1px 1px;
+  appearance: none;
+  background: #ffb45b;
+  box-shadow:
+    0 0 0 1px rgba(15, 19, 35, 0.75),
+    0 0 8px rgba(255, 180, 91, 0.58);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.fn-marker-flag:hover,
+.fn-marker-flag:focus-visible,
+.fn-marker-point[data-hovered="true"],
+.fn-marker-range[data-hovered="true"] {
   filter: brightness(1.25);
 }

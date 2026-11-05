@@ -641,6 +641,7 @@ function Markers({ notes, session, seek }: MarkersProps) {
     session.getDurationSnapshot,
   );
   const [bounds, setBounds] = useState<MarkerRect | null>(null);
+  const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
 
   useEffect(() => {
     let input: HTMLInputElement | null = null;
@@ -709,36 +710,56 @@ function Markers({ notes, session, seek }: MarkersProps) {
   const trackWidth = Math.max(0, bounds.width - inset * 2);
   const xFor = (time: number) => inset + Math.min(1, Math.max(0, time / duration)) * trackWidth;
   const markerTop = bounds.top + Math.max(0, (bounds.height - 8) / 2);
+  const flagWidth = Math.min(10, trackWidth);
 
   return (
     <section className="fn-markers" aria-label={t("markersLabel", currentLocale())}>
       {sortNotes(notes).map((note) => {
         const left = xFor(note.start);
+        const flagLeft = Math.min(
+          Math.max(bounds.left + left - flagWidth / 2, bounds.left + inset),
+          bounds.left + inset + trackWidth - flagWidth,
+        );
         const label = note.text || formatTime(note.start);
-        return note.end === null ? (
-          <button
-            type="button"
-            className="fn-marker-point"
-            key={note.id}
-            style={{ left: bounds.left + left - 1, top: markerTop }}
-            title={label}
-            aria-label={`${formatTime(note.start)}: ${label}`}
-            onClick={() => seek(note.start)}
-          />
-        ) : (
-          <button
-            type="button"
-            className="fn-marker-range"
-            key={note.id}
-            style={{
-              left: bounds.left + left,
-              top: markerTop,
-              width: Math.max(5, xFor(note.end) - left),
-            }}
-            title={label}
-            aria-label={`${formatTime(note.start)}–${formatTime(note.end)}: ${label}`}
-            onClick={() => seek(note.start)}
-          />
+        const isHovered = hoveredNoteId === note.id;
+        return (
+          <div className="fn-marker-group" key={note.id}>
+            {note.end === null ? (
+              <div
+                aria-hidden="true"
+                className="fn-marker-point"
+                data-hovered={isHovered ? "true" : undefined}
+                style={{ left: bounds.left + left - 1, top: markerTop }}
+              />
+            ) : (
+              <div
+                aria-hidden="true"
+                className="fn-marker-range"
+                data-hovered={isHovered ? "true" : undefined}
+                style={{
+                  left: bounds.left + left,
+                  top: markerTop,
+                  width: Math.max(5, xFor(note.end) - left),
+                }}
+              />
+            )}
+            <button
+              type="button"
+              className="fn-marker-flag"
+              style={{ left: flagLeft, top: bounds.top - 10, width: flagWidth }}
+              title={label}
+              aria-label={
+                note.end === null
+                  ? `${formatTime(note.start)}: ${label}`
+                  : `${formatTime(note.start)}–${formatTime(note.end)}: ${label}`
+              }
+              onPointerEnter={() => setHoveredNoteId(note.id)}
+              onPointerLeave={() => setHoveredNoteId(null)}
+              onFocus={() => setHoveredNoteId(note.id)}
+              onBlur={() => setHoveredNoteId(null)}
+              onClick={() => seek(note.start)}
+            />
+          </div>
         );
       })}
     </section>
