@@ -1,5 +1,7 @@
 import { defineConfig } from "wxt";
 
+const geckoId = process.env.FIREFOX_GECKO_ID?.trim();
+
 export default defineConfig({
   srcDir: ".",
   modules: ["@wxt-dev/module-react"],
@@ -34,6 +36,7 @@ export default defineConfig({
       ? {
           browser_specific_settings: {
             gecko: {
+              ...(geckoId ? { id: geckoId } : {}),
               data_collection_permissions: { required: ["none"] },
             },
           },

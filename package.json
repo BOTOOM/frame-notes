@@ -10,7 +10,8 @@
     "build:firefox": "pnpm --filter @frame-notes/extension build:firefox",
     "zip": "pnpm --filter @frame-notes/extension zip",
     "zip:firefox": "pnpm --filter @frame-notes/extension zip:firefox",
-    "dev": "pnpm --filter @frame-notes/extension dev"
+    "dev": "pnpm --filter @frame-notes/extension dev",
+    "release:dry-run": "cd apps/extension && GITHUB_TOKEN=$(gh auth token) pnpm exec semantic-release --dry-run --no-ci"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.2.4",
