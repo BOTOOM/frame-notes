@@ -6,3 +6,5 @@ coverage/
 *.log
 .DS_Store
 apps/extension/public/onnx/
+apps/landing/.next/
+apps/landing/tsconfig.tsbuildinfo
