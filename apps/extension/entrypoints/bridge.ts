@@ -57,6 +57,21 @@ export default defineUnlistedScript(() => {
     });
   };
 
+  const seekPlayer = (seconds: number) => {
+    if (!player) return;
+    const duration = Number.isFinite(player.duration) ? Math.max(player.duration, 0) : 0;
+    const time = Math.min(Math.max(Number.isFinite(seconds) ? seconds : 0, 0), duration);
+    const input = document.querySelector<HTMLInputElement>('input[aria-label="Seek preview"]');
+    if (!input || input.disabled) {
+      player.seek(time);
+      return;
+    }
+    const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    if (!valueSetter) return;
+    valueSetter.call(input, String(time));
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+
   const readFps = (): number => {
     if (!iframe) return 30;
     try {
@@ -183,7 +198,7 @@ export default defineUnlistedScript(() => {
     if (event.data.command === "getState") {
       sendState();
     } else if (event.data.command === "seek" && typeof event.data.time === "number") {
-      player?.seek(event.data.time);
+      seekPlayer(event.data.time);
       scheduleState();
     } else if (event.data.command === "pause") {
       player?.pause();
