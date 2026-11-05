@@ -65,7 +65,9 @@ export interface DictationController {
   stop: () => void;
   cancel: () => void;
   installLanguagePack: () => void;
+  cancelLanguagePack: () => void;
   consentToWhisper: () => void;
+  switchToWhisper: () => void;
 }
 
 interface UseDictationOptions {
@@ -85,6 +87,23 @@ interface PendingPack {
   language: string;
   world: "isolated" | "main";
   generation: number;
+}
+
+type PackInstallOutcome =
+  | { kind: "finished"; installed: boolean }
+  | { kind: "timeout" }
+  | { kind: "cancelled" };
+
+function cancelMainInstallRequest(
+  pendingRequests: Map<string, PendingRequest>,
+  requestId: string,
+  language: string,
+): void {
+  const pending = pendingRequests.get(requestId);
+  if (!pending) return;
+  clearTimeout(pending.timer);
+  pendingRequests.delete(requestId);
+  pending.resolve({ type: "install-result", requestId, language, installed: false });
 }
 
 type ExtensionRuntimePort = Parameters<
@@ -154,6 +173,8 @@ export function useDictation({
   const sessionIdRef = useRef<string | null>(null);
   const generationRef = useRef(0);
   const pendingPackRef = useRef<PendingPack | null>(null);
+  const installCancelRef = useRef<(() => void) | null>(null);
+  const installRequestRef = useRef<{ requestId: string; language: string } | null>(null);
   const pendingRequests = useRef(new Map<string, PendingRequest>());
   const whisperSessionRef = useRef<WhisperSession | null>(null);
   const whisperConsentRef = useRef(false);
@@ -202,6 +223,18 @@ export function useDictation({
     });
     let port: ExtensionRuntimePort;
     try {
+      if (browser.runtime.getManifest().manifest_version === 3) {
+        const response: unknown = await browser.runtime.sendMessage({
+          type: "frame-notes:ensure-whisper-host",
+        });
+        if (
+          typeof response !== "object" ||
+          response === null ||
+          Reflect.get(response, "ok") !== true
+        ) {
+          throw new Error("Whisper offscreen host is unavailable");
+        }
+      }
       port = browser.runtime.connect({ name: "frame-notes-whisper" });
     } catch {
       updateView({
@@ -365,6 +398,16 @@ export function useDictation({
     return () => {
       generationRef.current += 1;
       pendingPackRef.current = null;
+      installCancelRef.current?.();
+      installCancelRef.current = null;
+      const pendingInstall = installRequestRef.current;
+      if (pendingInstall)
+        cancelMainInstallRequest(
+          pendingRequests.current,
+          pendingInstall.requestId,
+          pendingInstall.language,
+        );
+      installRequestRef.current = null;
       unsubscribe();
       for (const pending of pendingRequests.current.values()) clearTimeout(pending.timer);
       pendingRequests.current.clear();
@@ -412,7 +455,7 @@ export function useDictation({
             availabilities: [],
           });
         },
-        request.type === "install" ? 10 * 60 * 1000 : 10_000,
+        request.type === "install" ? 120_000 : 10_000,
       );
       pendingRequests.current.set(request.requestId, { resolve, timer });
       bridge.send(request);
@@ -596,7 +639,12 @@ export function useDictation({
   const installLanguagePack = () => {
     const pending = pendingPackRef.current;
     if (!pending || pending.generation !== generationRef.current) return;
-    updateView({ ...viewRef.current, phase: "preparing" });
+    updateView({
+      ...viewRef.current,
+      phase: "preparing",
+      installResult: "not-requested",
+      error: null,
+    });
     const requestId = crypto.randomUUID();
     const install =
       pending.world === "isolated" && isolatedApi
@@ -618,33 +666,91 @@ export function useDictation({
                   installed: false,
                 },
           );
-    void install
-      .then((event) => {
-        if (pending.generation !== generationRef.current) return;
-        const installed = event.type === "install-result" && event.installed;
+    if (pending.world === "main")
+      installRequestRef.current = { requestId, language: pending.language };
+
+    let timeoutId = 0;
+    let resolveCancelled: ((outcome: PackInstallOutcome) => void) | null = null;
+    const timeout = new Promise<PackInstallOutcome>((resolve) => {
+      timeoutId = window.setTimeout(() => resolve({ kind: "timeout" }), 120_000);
+    });
+    const cancelled = new Promise<PackInstallOutcome>((resolve) => {
+      resolveCancelled = resolve;
+    });
+    const cancelInstall = () => resolveCancelled?.({ kind: "cancelled" });
+    installCancelRef.current = cancelInstall;
+
+    void Promise.race([
+      install.then(
+        (event): PackInstallOutcome => ({
+          kind: "finished",
+          installed: event.type === "install-result" && event.installed,
+        }),
+        (): PackInstallOutcome => ({ kind: "finished", installed: false }),
+      ),
+      timeout,
+      cancelled,
+    ]).then((outcome) => {
+      window.clearTimeout(timeoutId);
+      if (installCancelRef.current === cancelInstall) installCancelRef.current = null;
+      if (installRequestRef.current?.requestId === requestId) {
+        cancelMainInstallRequest(pendingRequests.current, requestId, pending.language);
+        installRequestRef.current = null;
+      }
+      if (outcome.kind === "cancelled" || pending.generation !== generationRef.current) return;
+
+      const installed = outcome.kind === "finished" && outcome.installed;
+      if (!installed) {
+        pendingPackRef.current = null;
         updateView({
           ...viewRef.current,
-          phase: installed ? "preparing" : "error",
-          installResult: installed ? "installed" : "failed",
-          availability: installed ? "available" : viewRef.current.availability,
-          error: installed ? null : "dictationPackFailed",
+          phase: "error",
+          installResult: "failed",
+          error: "dictationPackFailed",
         });
-        if (installed) {
-          startRecognition(
-            pending.language,
-            pending.world,
-            pending.generation,
-            "available",
-            "installed",
-          );
-        } else if (engineChoiceRef.current === "auto") {
-          fallbackToWhisper(pending.generation);
-        }
-      })
-      .catch(() => {
-        if (pending.generation !== generationRef.current) return;
-        fallbackToWhisper(pending.generation);
+        return;
+      }
+
+      pendingPackRef.current = null;
+      updateView({
+        ...viewRef.current,
+        phase: "preparing",
+        installResult: "installed",
+        availability: "available",
+        error: null,
       });
+      startRecognition(
+        pending.language,
+        pending.world,
+        pending.generation,
+        "available",
+        "installed",
+      );
+    });
+  };
+
+  const cancelLanguagePack = () => {
+    const pending = pendingPackRef.current;
+    if (
+      !pending ||
+      viewRef.current.phase !== "preparing" ||
+      !viewRef.current.engine ||
+      viewRef.current.installResult !== "not-requested"
+    )
+      return;
+    generationRef.current += 1;
+    pendingPackRef.current = null;
+    installCancelRef.current?.();
+    installCancelRef.current = null;
+    const pendingInstall = installRequestRef.current;
+    if (pendingInstall)
+      cancelMainInstallRequest(
+        pendingRequests.current,
+        pendingInstall.requestId,
+        pendingInstall.language,
+      );
+    installRequestRef.current = null;
+    updateView(emptyView());
   };
 
   const stop = () => {
@@ -734,6 +840,22 @@ export function useDictation({
     void startWhisper(generationRef.current);
   };
 
+  const switchToWhisper = () => {
+    const generation = ++generationRef.current;
+    pendingPackRef.current = null;
+    if (whisperConsentRef.current) {
+      void startWhisper(generation);
+      return;
+    }
+    updateView({
+      ...emptyView("consent-model"),
+      engine: "whisper",
+      modelConsentRequired: true,
+      apiSupported: viewRef.current.apiSupported,
+      probeResults: viewRef.current.probeResults,
+    });
+  };
+
   return {
     view,
     isActive:
@@ -742,6 +864,8 @@ export function useDictation({
     stop,
     cancel,
     installLanguagePack,
+    cancelLanguagePack,
     consentToWhisper,
+    switchToWhisper,
   };
 }

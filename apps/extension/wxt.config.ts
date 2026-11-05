@@ -12,7 +12,7 @@ export default defineConfig({
     name: "__MSG_extensionName__",
     description: "__MSG_extensionDescription__",
     default_locale: "en",
-    permissions: ["storage", "activeTab"],
+    permissions: ["storage", "activeTab", ...(browser === "chrome" ? ["offscreen"] : [])],
     host_permissions: ["http://localhost/*", "http://127.0.0.1/*"],
     content_security_policy:
       browser === "firefox"
@@ -65,4 +65,12 @@ export default defineConfig({
         ? ["bridge.js"]
         : [{ resources: ["bridge.js"], matches: ["http://localhost/*", "http://127.0.0.1/*"] }],
   }),
+  hooks: {
+    "entrypoints:found"(wxt, entrypoints) {
+      if (wxt.config.browser === "firefox") {
+        const index = entrypoints.findIndex((entrypoint) => entrypoint.name === "offscreen");
+        if (index >= 0) entrypoints.splice(index, 1);
+      }
+    },
+  },
 });

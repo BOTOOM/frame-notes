@@ -1,28 +1,7 @@
+import { registerWhisperHost } from "../src/dictation/whisper-host";
+
 type ShortcutAction = "new" | "start" | "end" | "copy" | "minimize";
-
-type WhisperPortRequest =
-  | { type: "prepare"; consented: boolean; language: string }
-  | { type: "pcm"; samples: Float32Array }
-  | { type: "finish" }
-  | { type: "cancel" }
-  | { type: "keepalive" };
-
-type ExtensionRuntimePort = Parameters<
-  Parameters<typeof browser.runtime.onConnect.addListener>[0]
->[0];
-
 const namespace = "frame-notes:v1";
-let whisperPipeline: ReturnType<typeof createWhisperPipeline> | null = null;
-let whisperDevice: "webgpu" | "wasm" = "wasm";
-let whisperDtype: "fp16" | "q8" = "q8";
-
-function postPort(port: ExtensionRuntimePort, message: unknown): void {
-  try {
-    port.postMessage(message);
-  } catch {
-    return;
-  }
-}
 
 const commandActions: Record<string, ShortcutAction> = {
   "new-note": "new",
@@ -32,141 +11,122 @@ const commandActions: Record<string, ShortcutAction> = {
   "toggle-panel": "minimize",
 };
 
-async function createWhisperPipeline(
-  device: "webgpu" | "wasm",
-  dtype: "fp16" | "q8",
-  onProgress: (progress: unknown) => void,
-) {
-  const { env, pipeline } = await import("@huggingface/transformers");
-  const onnxWasm = env.backends.onnx.wasm;
-  if (!onnxWasm) throw new Error("ONNX WASM backend is unavailable");
-  onnxWasm.wasmPaths = new URL("onnx/", browser.runtime.getURL("/popup.html")).href;
-  env.useBrowserCache = true;
-  return pipeline("automatic-speech-recognition", "onnx-community/whisper-base", {
-    device,
-    dtype,
-    progress_callback: onProgress,
-  });
+function isReadyResponse(value: unknown): boolean {
+  return typeof value === "object" && value !== null && Reflect.get(value, "ready") === true;
 }
 
-function validWhisperRequest(value: unknown): value is WhisperPortRequest {
-  if (typeof value !== "object" || value === null) return false;
-  const type = Reflect.get(value, "type");
-  if (type === "prepare") {
-    return (
-      typeof Reflect.get(value, "consented") === "boolean" &&
-      typeof Reflect.get(value, "language") === "string"
-    );
-  }
-  if (type === "pcm") return Reflect.get(value, "samples") instanceof Float32Array;
-  return type === "finish" || type === "cancel" || type === "keepalive";
+async function getOffscreenContextCount(): Promise<number> {
+  const chromeApi = Reflect.get(globalThis, "chrome");
+  const runtime = Reflect.get(chromeApi, "runtime");
+  const getContexts = Reflect.get(runtime, "getContexts");
+  if (typeof getContexts !== "function")
+    return Promise.reject(new Error("getContexts unavailable"));
+  const contexts: unknown = await Reflect.apply(getContexts, runtime, [
+    {
+      contextTypes: ["OFFSCREEN_DOCUMENT"],
+      documentUrls: [browser.runtime.getURL("/offscreen.html")],
+    },
+  ]);
+  return Array.isArray(contexts) ? contexts.length : 0;
 }
 
-async function loadWhisperPipeline(
-  port: ExtensionRuntimePort,
-): Promise<Awaited<ReturnType<typeof createWhisperPipeline>>> {
-  if (!whisperPipeline) {
-    const gpu: unknown = Reflect.get(navigator, "gpu");
-    const requestAdapter =
-      typeof gpu === "object" && gpu !== null ? Reflect.get(gpu, "requestAdapter") : null;
-    let hasAdapter = false;
-    if (typeof requestAdapter === "function") {
-      try {
-        hasAdapter = Boolean(await Reflect.apply(requestAdapter, gpu, []));
-      } catch {
-        hasAdapter = false;
-      }
-    }
-    whisperDevice = hasAdapter ? "webgpu" : "wasm";
-    whisperDtype = hasAdapter ? "fp16" : "q8";
-    const progress = (event: unknown) => {
-      const value =
-        typeof event === "object" && event !== null ? Reflect.get(event, "progress") : null;
-      const percent = typeof value === "number" && value <= 1 ? value * 100 : value;
-      postPort(port, {
-        type: "progress",
-        value: typeof percent === "number" && Number.isFinite(percent) ? Math.round(percent) : null,
-      });
-    };
-    whisperPipeline = createWhisperPipeline(whisperDevice, whisperDtype, progress).catch(
-      async () => {
-        if (whisperDevice !== "webgpu") throw new Error("Whisper model failed to load");
-        whisperDevice = "wasm";
-        whisperDtype = "q8";
-        return createWhisperPipeline("wasm", "q8", progress);
-      },
-    );
-  }
-  let loaded: Awaited<ReturnType<typeof createWhisperPipeline>>;
+async function createOffscreenDocument(): Promise<void> {
+  const chromeApi = Reflect.get(globalThis, "chrome");
+  const offscreen = Reflect.get(chromeApi, "offscreen");
+  const createDocument = Reflect.get(offscreen, "createDocument");
+  if (typeof createDocument !== "function") throw new Error("offscreen API unavailable");
+  await Reflect.apply(createDocument, offscreen, [
+    {
+      url: "offscreen.html",
+      reasons: ["WORKERS"],
+      justification: "Run the local Whisper speech model",
+    },
+  ]);
+}
+
+async function pingOffscreenHost(): Promise<unknown> {
   try {
-    loaded = await whisperPipeline;
-  } catch (error) {
-    whisperPipeline = null;
-    throw error;
+    return await browser.runtime.sendMessage({ type: "frame-notes:whisper-host-ping" });
+  } catch {
+    return undefined;
   }
-  postPort(port, { type: "ready", device: whisperDevice, dtype: whisperDtype });
-  return loaded;
+}
+
+function registerChromeWhisperHostManager(): void {
+  let ready = false;
+  let ensurePromise: Promise<void> | null = null;
+  let resolveReady: (() => void) | null = null;
+
+  const waitForReady = () => {
+    if (ready) return Promise.resolve();
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        resolveReady = null;
+        reject(new Error("Whisper offscreen host did not become ready"));
+      }, 15_000);
+      resolveReady = () => {
+        clearTimeout(timer);
+        resolveReady = null;
+        resolve();
+      };
+    });
+  };
+
+  browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (typeof message !== "object" || message === null) return;
+    const type = Reflect.get(message, "type");
+    if (type === "frame-notes:whisper-host-ready") {
+      ready = true;
+      resolveReady?.();
+      return;
+    }
+    if (type !== "frame-notes:ensure-whisper-host") return;
+
+    ensurePromise ??= (async () => {
+      if (ready) return;
+      const existingContexts = await getOffscreenContextCount();
+      if (existingContexts > 0) {
+        const response = await pingOffscreenHost();
+        if (isReadyResponse(response)) {
+          ready = true;
+          return;
+        }
+      }
+      const readyPromise = waitForReady();
+      if (existingContexts === 0) {
+        try {
+          await createOffscreenDocument();
+        } catch (error) {
+          if ((await getOffscreenContextCount()) === 0) throw error;
+          const response = await pingOffscreenHost();
+          if (isReadyResponse(response)) {
+            ready = true;
+            return;
+          }
+        }
+      }
+      await readyPromise;
+    })().finally(() => {
+      ensurePromise = null;
+    });
+    void ensurePromise.then(
+      () => sendResponse({ ok: true }),
+      (error: unknown) =>
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : "Whisper host unavailable",
+        }),
+    );
+    return true;
+  });
 }
 
 export default defineBackground(() => {
-  browser.runtime.onConnect.addListener((port) => {
-    if (port.name !== "frame-notes-whisper") return;
-    let language = "english";
-    const chunks: Float32Array[] = [];
-    let modelPromise: ReturnType<typeof loadWhisperPipeline> | null = null;
-    let consented = false;
-    let cancelled = false;
-
-    port.onMessage.addListener((value) => {
-      if (!validWhisperRequest(value)) return;
-      if (value.type === "prepare") {
-        if (!value.consented) {
-          postPort(port, { type: "error", code: "consent-required" });
-          return;
-        }
-        consented = true;
-        language = value.language;
-        modelPromise ??= loadWhisperPipeline(port);
-        void modelPromise.catch(() => {
-          postPort(port, { type: "error", code: "model-load-failed" });
-        });
-      } else if (value.type === "pcm") {
-        if (consented && modelPromise) chunks.push(value.samples);
-      } else if (value.type === "finish") {
-        const pendingPipeline = modelPromise;
-        if (!consented || !pendingPipeline) {
-          postPort(port, { type: "error", code: "consent-required" });
-          return;
-        }
-        cancelled = false;
-        void (async () => {
-          try {
-            const transcriber = await pendingPipeline;
-            const samples = new Float32Array(
-              chunks.reduce((length, chunk) => length + chunk.length, 0),
-            );
-            let offset = 0;
-            for (const chunk of chunks) {
-              samples.set(chunk, offset);
-              offset += chunk.length;
-            }
-            chunks.length = 0;
-            const result = await transcriber(samples, { language, task: "transcribe" });
-            const text = Array.isArray(result) ? result[0]?.text : result.text;
-            if (text && !cancelled) postPort(port, { type: "result", text });
-          } catch {
-            postPort(port, { type: "error", code: "transcription-failed" });
-          }
-        })();
-      } else if (value.type === "cancel") {
-        cancelled = true;
-        chunks.length = 0;
-      }
-    });
-    port.onDisconnect.addListener(() => {
-      chunks.length = 0;
-    });
-  });
+  if (browser.runtime.getManifest().manifest_version === 2) {
+    registerWhisperHost();
+  } else {
+    registerChromeWhisperHostManager();
+  }
 
   browser.commands.onCommand.addListener(async (command) => {
     const action = commandActions[command];

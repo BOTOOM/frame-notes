@@ -29,6 +29,10 @@ export function DictationControls({ dictation }: DictationControlsProps) {
   const canStop = view.phase === "listening";
   const canStart = view.phase === "idle" || view.phase === "error";
   const showLocalNotice = view.engine !== null && view.phase !== "idle" && view.phase !== "error";
+  const installingPack =
+    view.phase === "preparing" &&
+    view.engine === "chrome-local" &&
+    view.installResult === "not-requested";
 
   return (
     <div
@@ -55,10 +59,27 @@ export function DictationControls({ dictation }: DictationControlsProps) {
           {canStop ? "■" : "🎙"}
         </button>
         <span className="fn-dictation-status">
-          {t(view.error ? errorKeys[view.error] : phaseKeys[view.phase], locale)}
+          {t(
+            installingPack
+              ? "dictationDownloadVoicePack"
+              : view.error
+                ? errorKeys[view.error]
+                : phaseKeys[view.phase],
+            locale,
+          )}
         </span>
         {showLocalNotice && (
           <span className="fn-local-audio">{t("dictationAudioLocal", locale)}</span>
+        )}
+        {installingPack && (
+          <button type="button" onClick={dictation.cancelLanguagePack}>
+            {t("cancel", locale)}
+          </button>
+        )}
+        {view.error === "dictationPackFailed" && view.installResult === "failed" && (
+          <button type="button" onClick={dictation.switchToWhisper}>
+            {t("dictationUseWhisper", locale)}
+          </button>
         )}
       </div>
       {view.phase === "consent-language" && (
