@@ -310,8 +310,12 @@ export default defineContentScript({
       postBridge({ kind: "command", command: "dispose" });
     });
 
-    const runtimeListener = (message: unknown): unknown => {
-      if (!isExtensionRequest(message)) return undefined;
+    const runtimeListener: Parameters<typeof browser.runtime.onMessage.addListener>[0] = (
+      message,
+      _sender,
+      sendResponse,
+    ) => {
+      if (!isExtensionRequest(message)) return false;
       if (message.type === "status") {
         const state = session?.getSnapshot();
         const status: StudioStatus = {
@@ -319,17 +323,20 @@ export default defineContentScript({
           project: state?.doc.project ?? null,
           noteCount: state?.doc.notes.length ?? 0,
         };
-        return Promise.resolve(status);
+        sendResponse(status);
+        return true;
       }
       if (message.type === "copy") {
         actionRef.current?.("copy");
-        return Promise.resolve({ ok: Boolean(session) });
+        sendResponse({ ok: Boolean(session) });
+        return true;
       }
       if (message.type === "shortcut" && message.action) {
         actionRef.current?.(message.action);
-        return Promise.resolve({ ok: Boolean(session) });
+        sendResponse({ ok: Boolean(session) });
+        return true;
       }
-      return undefined;
+      return false;
     };
     browser.runtime.onMessage.addListener(runtimeListener);
     ctx.onInvalidated(() => browser.runtime.onMessage.removeListener(runtimeListener));

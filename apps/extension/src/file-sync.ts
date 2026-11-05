@@ -1,4 +1,11 @@
-import { chooseNotesDoc, type Locale, type NotesDoc, notesJson, notesMarkdown } from "./model";
+import {
+  chooseNotesDoc,
+  type Locale,
+  type NotesDoc,
+  notesJson,
+  notesMarkdown,
+  sortNotes,
+} from "./model";
 
 export type FileVersions = Map<string, string | null>;
 export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -45,7 +52,14 @@ function isNote(value: unknown): value is NotesDoc["notes"][number] {
 
 export interface RemoteNotes {
   doc: NotesDoc | null;
+  markdown: string | null;
   versions: FileVersions;
+}
+
+class FileConflictError extends Error {
+  constructor(path: string, status: number) {
+    super(`Failed to save ${path} (${status})`);
+  }
 }
 
 export function projectFileUrl(project: string, path: string): string {
@@ -91,7 +105,7 @@ export async function readProjectNotes(
     ["review-notes.json", jsonFile?.version ?? null],
     ["review-notes.md", markdownFile?.version ?? null],
   ]);
-  if (!jsonFile) return { doc: null, versions };
+  if (!jsonFile) return { doc: null, markdown: markdownFile?.content ?? null, versions };
 
   let parsed: unknown;
   try {
@@ -102,7 +116,7 @@ export async function readProjectNotes(
   if (!isNotesDoc(parsed) || parsed.project !== project) {
     throw new Error("Invalid review-notes.json");
   }
-  return { doc: parsed, versions };
+  return { doc: parsed, markdown: markdownFile?.content ?? null, versions };
 }
 
 export async function putFile(
@@ -111,6 +125,7 @@ export async function putFile(
   path: string,
   content: string,
   version: string | null,
+  retryConflict = true,
 ): Promise<string> {
   const url = projectFileUrl(project, path);
   const headers = new Headers({ "Content-Type": "text/plain" });
@@ -119,6 +134,7 @@ export async function putFile(
 
   let response = await fetcher(url, { method: "PUT", headers, body: content });
   if (response.status === 409 || response.status === 428) {
+    if (!retryConflict) throw new FileConflictError(path, response.status);
     const conflictValue: unknown = await response.json().catch(() => null);
     if (!isConflictPayload(conflictValue)) throw new Error(`Missing version while saving ${path}`);
     const currentVersion = conflictValue.currentVersion;
@@ -131,7 +147,11 @@ export async function putFile(
       body: content,
     });
   }
-  if (!response.ok) throw new Error(`Failed to save ${path} (${response.status})`);
+  if (!response.ok) {
+    if (response.status === 409 || response.status === 428)
+      throw new FileConflictError(path, response.status);
+    throw new Error(`Failed to save ${path} (${response.status})`);
+  }
   const result: unknown = await response.json();
   const payloadVersion =
     isRecord(result) && typeof result.version === "string" ? result.version : null;
@@ -145,23 +165,66 @@ export async function syncProjectNotes(
   versions: FileVersions,
   locale: Locale,
   fetcher: FetchLike = fetch,
-): Promise<void> {
-  const files: Array<[string, string]> = [
-    ["review-notes.json", notesJson(doc)],
-    ["review-notes.md", notesMarkdown(doc, locale)],
-  ];
-  for (const [path, content] of files) {
-    const nextVersion = await putFile(
-      fetcher,
-      doc.project,
-      path,
-      content,
-      versions.get(path) ?? null,
-    );
-    versions.set(path, nextVersion);
+  deletedIds: ReadonlySet<string> = new Set(),
+): Promise<NotesDoc> {
+  let selected = doc;
+  for (let retry = 0; ; retry += 1) {
+    try {
+      const nextVersion = await putFile(
+        fetcher,
+        selected.project,
+        "review-notes.json",
+        notesJson(selected),
+        versions.get("review-notes.json") ?? null,
+        false,
+      );
+      versions.set("review-notes.json", nextVersion);
+      break;
+    } catch (error) {
+      if (!(error instanceof FileConflictError) || retry >= 2) throw error;
+      const remote = await readProjectNotes(selected.project, fetcher);
+      for (const [path, version] of remote.versions) versions.set(path, version);
+      selected = mergeNotes(selected, remote.doc, deletedIds) ?? selected;
+    }
   }
+  const markdownVersion = await putFile(
+    fetcher,
+    selected.project,
+    "review-notes.md",
+    notesMarkdown(selected, locale),
+    versions.get("review-notes.md") ?? null,
+  );
+  versions.set("review-notes.md", markdownVersion);
+  return selected;
 }
 
-export function mergeNotes(local: NotesDoc | null, remote: NotesDoc | null): NotesDoc | null {
-  return chooseNotesDoc(local, remote);
+export function mergeNotes(
+  local: NotesDoc | null,
+  remote: NotesDoc | null,
+  deletedIds: ReadonlySet<string> = new Set(),
+): NotesDoc | null {
+  const selected = chooseNotesDoc(local, remote);
+  if (!selected) return null;
+  const byId = new Map<string, NotesDoc["notes"][number]>();
+  for (const note of [...(local?.notes ?? []), ...(remote?.notes ?? [])]) {
+    if (deletedIds.has(note.id)) continue;
+    const current = byId.get(note.id);
+    if (!current || Date.parse(note.updatedAt) > Date.parse(current.updatedAt))
+      byId.set(note.id, note);
+  }
+  const notes = sortNotes([...byId.values()]);
+  if (
+    notes.length === selected.notes.length &&
+    notes.every((note, index) => note === selected.notes[index])
+  )
+    return selected;
+  return { ...selected, notes };
+}
+
+export function needsMarkdownSync(
+  markdown: string | null,
+  selected: NotesDoc,
+  locale: Locale,
+): boolean {
+  return markdown !== notesMarkdown(selected, locale);
 }
