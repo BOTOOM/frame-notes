@@ -122,7 +122,8 @@ export default defineUnlistedScript(() => {
   };
 
   const attachPlayer = (nextPlayer: PlayerElement) => {
-    if (player !== nextPlayer) {
+    const playerChanged = player !== nextPlayer;
+    if (playerChanged) {
       detachPlayer();
       player = nextPlayer;
       player.addEventListener("timeupdate", handleTimeUpdate);
@@ -144,8 +145,10 @@ export default defineUnlistedScript(() => {
         playerObserver.observe(player.shadowRoot, { childList: true, subtree: true });
       }
     }
-    attachIframe(player.shadowRoot?.querySelector("iframe") ?? null);
-    scheduleState();
+    const nextIframe = nextPlayer.shadowRoot?.querySelector("iframe") ?? null;
+    const iframeChanged = iframe !== nextIframe;
+    attachIframe(nextIframe);
+    if (playerChanged || iframeChanged) scheduleState();
   };
 
   function ensurePlayer(): void {

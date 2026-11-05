@@ -97,7 +97,7 @@ export function NotePanel({ session, project, actionRef, storageKey }: NotePanel
   const [invalidTime, setInvalidTime] = useState(false);
   const [position, setPosition] = useState(() => ({
     left: Math.max(panelMargin, window.innerWidth - panelWidth - 20),
-    top: 20,
+    top: 64,
   }));
   const [minimized, setMinimized] = useState(false);
   const [deleted, setDeleted] = useState<Note | null>(null);

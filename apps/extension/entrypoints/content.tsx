@@ -86,7 +86,7 @@ export default defineContentScript({
     if (!isTopFrame) {
       const forwardFrameShortcut = (event: KeyboardEvent) => {
         const action = isShortcut(event);
-        if (!action || !window.top || location.origin !== window.location.origin) return;
+        if (!action || !window.top) return;
         event.preventDefault();
         event.stopImmediatePropagation();
         window.top.postMessage({ namespace, kind: "frame-command", action }, location.origin);
@@ -124,11 +124,15 @@ export default defineContentScript({
       if (fromPanel) {
         event.stopImmediatePropagation();
         if (event.type !== "keydown") return;
+        const target = path[0];
+        const isEditor =
+          target instanceof HTMLTextAreaElement ||
+          (target instanceof HTMLInputElement && target.type === "text");
         const action = isShortcut(event);
         if (action) {
           event.preventDefault();
           actionRef.current?.(action);
-        } else if (event.key === "Enter" && !event.shiftKey) {
+        } else if (event.key === "Enter" && !event.shiftKey && isEditor) {
           event.preventDefault();
           actionRef.current?.("save");
         } else if (event.key === "Escape") {
@@ -205,32 +209,31 @@ export default defineContentScript({
     };
 
     const handlePageMessage = (event: MessageEvent<BridgeEnvelope>) => {
-      if (event.source !== window || event.origin !== location.origin) return;
       const message = event.data;
-      if (
-        message?.namespace === namespace &&
-        message.nonce === nonce &&
-        message.kind === "state" &&
-        message.state
-      ) {
-        const playerState: PlayerState = {
-          currentTime: Number(message.state.currentTime) || 0,
-          duration: Number(message.state.duration) || 0,
-          paused: Boolean(message.state.paused),
-          fps: parseFps(String(message.state.fps ?? 30)),
-        };
-        session?.setPlayerState(playerState);
+      if (message?.namespace !== namespace) return;
+      if (message.kind === "frame-command") {
+        if (event.origin !== location.origin || !sameOriginFrame(event.source) || !message.action) {
+          return;
+        }
+        actionRef.current?.(message.action);
         return;
       }
       if (
-        message?.namespace === namespace &&
-        message.kind === "frame-command" &&
-        event.origin === location.origin &&
-        sameOriginFrame(event.source) &&
-        message.action
+        event.source !== window ||
+        event.origin !== location.origin ||
+        message.nonce !== nonce ||
+        message.kind !== "state" ||
+        !message.state
       ) {
-        actionRef.current?.(message.action);
+        return;
       }
+      const playerState: PlayerState = {
+        currentTime: Number(message.state.currentTime) || 0,
+        duration: Number(message.state.duration) || 0,
+        paused: Boolean(message.state.paused),
+        fps: parseFps(String(message.state.fps ?? 30)),
+      };
+      session?.setPlayerState(playerState);
     };
     ctx.addEventListener(window, "message", handlePageMessage);
     ctx.addEventListener(window, "hashchange", reconcile);

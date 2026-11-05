@@ -42,6 +42,7 @@ export class NoteSession {
   private loaded = false;
   private pendingWrite = false;
   private hasLocalChanges = false;
+  private hasPlayerState = false;
 
   constructor(
     project: string,
@@ -113,12 +114,8 @@ export class NoteSession {
       for (const [path, version] of remote.versions) this.versions.set(path, version);
       const candidate = this.hasLocalChanges ? this.state.doc : local;
       let selected = this.hasLocalChanges ? candidate : mergeNotes(candidate, remote.doc);
-      if (selected && selected.fps !== this.state.fps) {
-        selected = {
-          ...selected,
-          fps: this.state.fps,
-          updatedAt: new Date().toISOString(),
-        };
+      if (this.hasPlayerState && selected && selected.fps !== this.state.fps) {
+        selected = { ...selected, fps: this.state.fps };
         shouldWrite = true;
       }
       if (selected) {
@@ -149,13 +146,14 @@ export class NoteSession {
   }
 
   setPlayerState(player: PlayerState): void {
+    this.hasPlayerState = true;
     const fpsChanged = player.fps !== this.state.doc.fps;
     if (!fpsChanged) {
       this.publish({ ...player });
       return;
     }
-    const doc = { ...this.state.doc, fps: player.fps, updatedAt: new Date().toISOString() };
-    this.publish({ ...player, doc });
+    const doc = { ...this.state.doc, fps: player.fps };
+    this.publish({ ...player, doc, syncStatus: "syncing" });
     this.persistAndSchedule(doc);
   }
 
@@ -226,9 +224,9 @@ export class NoteSession {
       if (this.disposed) return;
       try {
         await syncProjectNotes(doc, this.versions, this.locale);
-        if (this.state.doc.updatedAt === doc.updatedAt) this.publish({ syncStatus: "synced" });
+        if (this.state.doc === doc) this.publish({ syncStatus: "synced" });
       } catch {
-        if (this.state.doc.updatedAt === doc.updatedAt) this.publish({ syncStatus: "local" });
+        if (this.state.doc === doc) this.publish({ syncStatus: "local" });
       }
     });
     return this.writeQueue;

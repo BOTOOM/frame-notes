@@ -19,6 +19,15 @@ export default defineConfig({
       default_title: "__MSG_extensionName__",
       default_popup: "popup.html",
     },
+    ...(browser === "firefox"
+      ? {
+          browser_specific_settings: {
+            gecko: {
+              data_collection_permissions: { required: ["none"] },
+            },
+          },
+        }
+      : {}),
     commands: {
       "new-note": {
         suggested_key: { default: "Alt+Shift+N", mac: "Alt+Shift+N" },

@@ -46,10 +46,11 @@ mirrored to the project root as:
   frame numbers.
 
 Times are composition time in seconds. Frame numbers are rounded using the
-composition's fps. An agent working on the project should read
-`review-notes.md` before editing, use each time range as the review target, and
-leave the files in place; deleting every note writes an empty document rather
-than deleting either file.
+composition's fps. While a Studio tab for the project is open, the extension
+owns these files and may overwrite them during sync. Agents should read
+`review-notes.md` rather than edit either file, use each time range as the review
+target, and leave the files in place; deleting every note writes an empty
+document rather than deleting either file.
 
 ## Development
 

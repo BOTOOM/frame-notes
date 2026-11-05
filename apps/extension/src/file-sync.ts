@@ -9,7 +9,7 @@ interface FilePayload {
 }
 
 interface ConflictPayload {
-  currentVersion?: string | null;
+  currentVersion: string | null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -26,10 +26,7 @@ function isFilePayload(value: unknown): value is FilePayload {
 
 function isConflictPayload(value: unknown): value is ConflictPayload {
   return (
-    isRecord(value) &&
-    (typeof value.currentVersion === "string" ||
-      value.currentVersion === null ||
-      value.currentVersion === undefined)
+    isRecord(value) && (typeof value.currentVersion === "string" || value.currentVersion === null)
   );
 }
 
@@ -121,16 +118,16 @@ export async function putFile(
   else headers.set("If-None-Match", "*");
 
   let response = await fetcher(url, { method: "PUT", headers, body: content });
-  if (response.status === 428) {
+  if (response.status === 409 || response.status === 428) {
     const conflictValue: unknown = await response.json().catch(() => null);
-    const currentVersion = isConflictPayload(conflictValue) ? conflictValue.currentVersion : null;
-    if (!currentVersion) throw new Error(`Missing version while saving ${path}`);
+    if (!isConflictPayload(conflictValue)) throw new Error(`Missing version while saving ${path}`);
+    const currentVersion = conflictValue.currentVersion;
+    const retryHeaders = new Headers({ "Content-Type": "text/plain" });
+    if (currentVersion === null) retryHeaders.set("If-None-Match", "*");
+    else retryHeaders.set("If-Match", currentVersion);
     response = await fetcher(url, {
       method: "PUT",
-      headers: new Headers({
-        "Content-Type": "text/plain",
-        "If-Match": currentVersion,
-      }),
+      headers: retryHeaders,
       body: content,
     });
   }
