@@ -53,6 +53,7 @@ jobs:
           name: frame-notes-extension-${{ github.sha }}
           path: apps/extension/.output/*.zip
           retention-days: 14
+          include-hidden-files: true
 
   release:
     needs: test
