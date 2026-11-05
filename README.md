@@ -65,3 +65,8 @@ document rather than deleting either file.
 Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and
 `pnpm build:firefox`. Project notes remain local-only when Studio's file API is
 unavailable.
+
+## Releasing
+
+See [docs/RELEASING.md](docs/RELEASING.md) for automated versioning, releases,
+and extension-store submissions.

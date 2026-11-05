@@ -1,0 +1,155 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/extension/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: Skip tests for an emergency release
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: Calculate the release without publishing it
+        required: false
+        type: boolean
+        default: false
+      publish_stores:
+        description: Submit release assets to configured extension stores
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  test:
+    if: ${{ !inputs.skip_tests }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm build:firefox
+      - run: pnpm zip && pnpm zip:firefox
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frame-notes-extension-${{ github.sha }}
+          path: apps/extension/.output/*.zip
+          retention-days: 14
+
+  release:
+    needs: test
+    if: ${{ always() && (needs.test.result == 'success' || needs.test.result == 'skipped') && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    outputs:
+      version: ${{ steps.semrel.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Run semantic-release
+        id: semrel
+        working-directory: apps/extension
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FIREFOX_GECKO_ID: ${{ vars.FIREFOX_GECKO_ID }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            pnpm exec semantic-release --dry-run
+          else
+            pnpm exec semantic-release
+          fi
+
+  publish-stores:
+    needs: release
+    if: ${{ needs.release.outputs.version != '' && (github.event_name != 'workflow_dispatch' || inputs.publish_stores != false) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Download GitHub release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: gh release download "v${VERSION}" -D dist --repo "$GITHUB_REPOSITORY"
+      - name: Submit to configured stores
+        env:
+          CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CHROME_PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
+          CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL: ${{ secrets.CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL }}
+          CHROME_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.CHROME_SERVICE_ACCOUNT_PRIVATE_KEY }}
+          EDGE_PRODUCT_ID: ${{ secrets.EDGE_PRODUCT_ID }}
+          EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
+          EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
+          FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
+          FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
+          FIREFOX_GECKO_ID: ${{ vars.FIREFOX_GECKO_ID }}
+          VERSION: ${{ needs.release.outputs.version }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          args=()
+
+          if [[ -n "${CHROME_EXTENSION_ID:-}" && -n "${CHROME_PUBLISHER_ID:-}" && -n "${CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL:-}" && -n "${CHROME_SERVICE_ACCOUNT_PRIVATE_KEY:-}" ]]; then
+            args+=(--chrome-zip "dist/frame-notes-${VERSION}-chrome.zip" --chrome-api-version v2)
+          else
+            echo "Skipping Chrome Web Store submission: required credentials are not all configured."
+          fi
+
+          if [[ -n "${FIREFOX_JWT_ISSUER:-}" && -n "${FIREFOX_JWT_SECRET:-}" && -n "${FIREFOX_GECKO_ID:-}" ]]; then
+            args+=(--firefox-zip "dist/frame-notes-${VERSION}-firefox.xpi" --firefox-sources-zip "dist/frame-notes-${VERSION}-sources.zip" --firefox-extension-id "$FIREFOX_GECKO_ID")
+          else
+            echo "Skipping Firefox AMO submission: required credentials or FIREFOX_GECKO_ID are not configured."
+          fi
+
+          if [[ -n "${EDGE_PRODUCT_ID:-}" && -n "${EDGE_CLIENT_ID:-}" && -n "${EDGE_API_KEY:-}" ]]; then
+            args+=(--edge-zip "dist/frame-notes-${VERSION}-chrome.zip")
+          else
+            echo "Skipping Microsoft Edge submission: required credentials are not all configured."
+          fi
+
+          if [[ ${#args[@]} -eq 0 ]]; then
+            echo "No store credentials are configured; skipping store submissions."
+            exit 0
+          fi
+
+          if [[ "${DRY_RUN:-false}" == "true" ]]; then
+            args+=(--dry-run)
+          fi
+
+          pnpm --filter @frame-notes/extension exec wxt submit "${args[@]}"
