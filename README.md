@@ -32,9 +32,17 @@ and `http://127.0.0.1:<port>/#project/<id>`.
 - **Escape:** cancel the draft or edit.
 - **Alt+Shift+C:** copy all notes.
 - **Alt+M:** minimize or expand the panel.
+- **Alt+V:** start on-device dictation in the editor, creating a note at the
+  playhead when needed.
 
 The same main actions are registered as extension commands and can be remapped
 from the browser's extension shortcut settings.
+
+The popup's **Dictation engine** setting selects Auto, Chrome on-device, or
+Whisper (local). Chrome language packs and the Whisper model are downloaded only
+after an in-panel confirmation. Dictation audio is processed on this device.
+Whisper uses the `onnx-community/whisper-base` model, with WebGPU fp16 when
+available and WASM q8 otherwise.
 
 ## Review-notes files
 

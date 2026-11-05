@@ -4,11 +4,18 @@ import { emptyNotesDoc, type Locale, type NotesDoc, sortNotes } from "./model";
 
 export type SyncStatus = "loading" | "syncing" | "synced" | "local";
 
+export interface LoopingRange {
+  id: string;
+  start: number;
+  end: number;
+}
+
 export interface PlayerState {
   currentTime: number;
   duration: number;
   paused: boolean;
   fps: number;
+  loopingRange: LoopingRange | null;
 }
 
 export interface SessionState extends PlayerState {
@@ -16,24 +23,28 @@ export interface SessionState extends PlayerState {
   syncStatus: SyncStatus;
 }
 
-export type PlayerCommand = "seek" | "pause";
+export type PlayerCommand = "seek" | "pause" | "loop" | "stopLoop";
+export type PlayerCommandValue = number | LoopingRange;
 
 const emptyPlayerState: PlayerState = {
   currentTime: 0,
   duration: 0,
   paused: true,
   fps: 30,
+  loopingRange: null,
 };
 
 export class NoteSession {
   readonly project: string;
   readonly storageKey: `local:${string}`;
-  private readonly commandPlayer: (command: PlayerCommand, time?: number) => void;
+  private readonly commandPlayer: (command: PlayerCommand, value?: PlayerCommandValue) => void;
   private readonly locale: Locale;
   private readonly listeners = new Set<() => void>();
   private readonly documentListeners = new Set<() => void>();
   private readonly syncStatusListeners = new Set<() => void>();
   private readonly durationListeners = new Set<() => void>();
+  private readonly currentTimeListeners = new Set<() => void>();
+  private readonly loopingRangeListeners = new Set<() => void>();
   private readonly versions = new Map<string, string | null>();
   private state: SessionState;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -47,7 +58,7 @@ export class NoteSession {
   constructor(
     project: string,
     origin: string,
-    commandPlayer: (command: PlayerCommand, time?: number) => void,
+    commandPlayer: (command: PlayerCommand, value?: PlayerCommandValue) => void,
     locale: Locale = "en",
   ) {
     this.project = project;
@@ -94,6 +105,24 @@ export class NoteSession {
     this.durationListeners.add(listener);
     return () => {
       this.durationListeners.delete(listener);
+    };
+  };
+
+  getCurrentTimeSnapshot = (): number => this.state.currentTime;
+
+  subscribeCurrentTime = (listener: () => void): (() => void) => {
+    this.currentTimeListeners.add(listener);
+    return () => {
+      this.currentTimeListeners.delete(listener);
+    };
+  };
+
+  getLoopingRangeSnapshot = (): LoopingRange | null => this.state.loopingRange;
+
+  subscribeLoopingRange = (listener: () => void): (() => void) => {
+    this.loopingRangeListeners.add(listener);
+    return () => {
+      this.loopingRangeListeners.delete(listener);
     };
   };
 
@@ -168,8 +197,8 @@ export class NoteSession {
     this.persistAndSchedule(doc);
   }
 
-  command(command: PlayerCommand, time?: number): void {
-    this.commandPlayer(command, time);
+  command(command: PlayerCommand, value?: PlayerCommandValue): void {
+    this.commandPlayer(command, value);
   }
 
   dispose(): void {
@@ -180,6 +209,8 @@ export class NoteSession {
     this.documentListeners.clear();
     this.syncStatusListeners.clear();
     this.durationListeners.clear();
+    this.currentTimeListeners.clear();
+    this.loopingRangeListeners.clear();
   }
 
   private publish(update: Partial<SessionState>): void {
@@ -195,6 +226,12 @@ export class NoteSession {
     }
     if (this.state.duration !== previous.duration) {
       for (const listener of this.durationListeners) listener();
+    }
+    if (this.state.currentTime !== previous.currentTime) {
+      for (const listener of this.currentTimeListeners) listener();
+    }
+    if (this.state.loopingRange !== previous.loopingRange) {
+      for (const listener of this.loopingRangeListeners) listener();
     }
   }
 

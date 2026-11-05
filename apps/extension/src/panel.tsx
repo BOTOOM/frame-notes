@@ -1,11 +1,35 @@
 import type { PointerEvent, RefObject } from "react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { storage } from "wxt/utils/storage";
+import { DetailStrip } from "./detail-strip";
+import { DictationControls } from "./dictation/controls";
+import { insertAtCaret } from "./dictation/helpers";
+import { useDictationEngineChoice } from "./dictation/preferences";
+import type { SpeechBridge } from "./dictation/protocol";
+import { useDictation } from "./dictation/use-dictation";
 import { currentLocale, t } from "./i18n";
-import { copyText, formatTime, type Note, normalizeNote, parseTime, sortNotes } from "./model";
+import {
+  copyText,
+  formatRangeDuration,
+  formatTime,
+  type Note,
+  normalizeNote,
+  parseTime,
+  sortNotes,
+} from "./model";
 import type { NoteSession } from "./session";
+import { nudgeFrames } from "./timeline-math";
+import { TimelineOverlay } from "./timeline-overlay";
 
-export type PanelAction = "new" | "start" | "end" | "copy" | "minimize" | "save" | "cancel";
+export type PanelAction =
+  | "new"
+  | "start"
+  | "end"
+  | "copy"
+  | "minimize"
+  | "save"
+  | "cancel"
+  | "dictate";
 export interface PanelActionRef {
   current: ((action: PanelAction) => void) | null;
 }
@@ -15,6 +39,7 @@ interface NotePanelProps {
   project: string;
   actionRef: PanelActionRef;
   storageKey: `local:${string}`;
+  speechBridge: SpeechBridge;
 }
 
 interface EditFields {
@@ -81,7 +106,13 @@ async function copyToClipboard(text: string): Promise<void> {
   if (!copied) throw new Error("Clipboard unavailable");
 }
 
-export function NotePanel({ session, project, actionRef, storageKey }: NotePanelProps) {
+export function NotePanel({
+  session,
+  project,
+  actionRef,
+  storageKey,
+  speechBridge,
+}: NotePanelProps) {
   const doc = useSyncExternalStore(
     session.subscribeDocument,
     session.getDocumentSnapshot,
@@ -92,7 +123,13 @@ export function NotePanel({ session, project, actionRef, storageKey }: NotePanel
     session.getSyncStatusSnapshot,
     session.getSyncStatusSnapshot,
   );
+  const loopingRange = useSyncExternalStore(
+    session.subscribeLoopingRange,
+    session.getLoopingRangeSnapshot,
+    session.getLoopingRangeSnapshot,
+  );
   const locale = currentLocale();
+  const engineChoice = useDictationEngineChoice();
   const [fields, setFields] = useState<EditFields | null>(null);
   const [invalidTime, setInvalidTime] = useState(false);
   const [position, setPosition] = useState(() => ({
@@ -102,11 +139,37 @@ export function NotePanel({ session, project, actionRef, storageKey }: NotePanel
   const [minimized, setMinimized] = useState(false);
   const [deleted, setDeleted] = useState<Note | null>(null);
   const [toast, setToast] = useState("");
+  const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const fieldsRef = useRef<EditFields | null>(fields);
   const dragRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const lastEditedId = useRef<string | null>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
+  fieldsRef.current = fields;
+  const dictation = useDictation({
+    locale,
+    engineChoice,
+    bridge: speechBridge,
+    pauseVideo: () => session.command("pause"),
+    insertText: (text) => {
+      const current = fieldsRef.current;
+      if (!current) return;
+      const input = textareaRef.current;
+      const insertion = insertAtCaret(
+        current.text,
+        text,
+        input?.selectionStart ?? current.text.length,
+        input?.selectionEnd ?? current.text.length,
+      );
+      setFields({ ...current, text: insertion.value });
+      requestAnimationFrame(() => {
+        if (!textareaRef.current) return;
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(insertion.caret, insertion.caret);
+      });
+    },
+  });
 
   useEffect(() => {
     let active = true;
@@ -175,7 +238,7 @@ export function NotePanel({ session, project, actionRef, storageKey }: NotePanel
     if (target?.isConnected) target.focus();
   };
 
-  const beginDraft = () => {
+  const beginDraft = (shouldPause = true) => {
     if (fields) {
       setToast(t("finishEditing", locale));
       return;
@@ -186,7 +249,7 @@ export function NotePanel({ session, project, actionRef, storageKey }: NotePanel
     persistPreferences(position, false);
     setInvalidTime(false);
     setFields(makeFields(session.getSnapshot().currentTime));
-    session.command("pause");
+    if (shouldPause) session.command("pause");
     requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
@@ -208,6 +271,7 @@ export function NotePanel({ session, project, actionRef, storageKey }: NotePanel
 
   const saveFields = () => {
     if (!fields) return;
+    dictation.cancel();
     const start = parseTime(fields.start, doc.fps);
     const end = fields.end.trim() ? parseTime(fields.end, doc.fps) : null;
     if (start === null || (fields.end.trim() && end === null)) {
@@ -231,6 +295,11 @@ export function NotePanel({ session, project, actionRef, storageKey }: NotePanel
   };
 
   const cancelFields = () => {
+    if (dictation.isActive) {
+      dictation.stop();
+      return;
+    }
+    dictation.cancel();
     setFields(null);
     setInvalidTime(false);
     restoreFocus();
@@ -293,6 +362,10 @@ export function NotePanel({ session, project, actionRef, storageKey }: NotePanel
       else if (action === "minimize") toggleMinimized();
       else if (action === "save") saveFields();
       else if (action === "cancel") cancelFields();
+      else if (action === "dictate") {
+        if (!fields) beginDraft(false);
+        dictation.start();
+      }
     };
     actionRef.current = handler;
     return () => {
@@ -303,6 +376,7 @@ export function NotePanel({ session, project, actionRef, storageKey }: NotePanel
   const handleStart = () => setStartToNow();
   const handleEnd = () => setEndToNow();
   const removeNote = (note: Note) => {
+    if (loopingRange?.id === note.id) session.command("stopLoop");
     setDeleted(note);
     setToast("");
     session.updateNotes(doc.notes.filter((item) => item.id !== note.id));
@@ -351,9 +425,17 @@ export function NotePanel({ session, project, actionRef, storageKey }: NotePanel
     dragRef.current = null;
   };
 
+  const draftStart = fields ? parseTime(fields.start, doc.fps) : null;
+  const draftEnd = fields?.end.trim() ? parseTime(fields.end, doc.fps) : null;
+
   return (
     <div className="fn-layer">
       <Markers notes={doc.notes} session={session} seek={(time) => session.command("seek", time)} />
+      <TimelineOverlay
+        notes={doc.notes}
+        activeNoteId={fields?.id ?? null}
+        hoveredNoteId={hoveredNoteId}
+      />
       <section
         className={`fn-panel${minimized ? " fn-panel--minimized" : ""}`}
         ref={panelRef}
@@ -414,10 +496,17 @@ export function NotePanel({ session, project, actionRef, storageKey }: NotePanel
                       : t("synced", locale)}
                 </span>
               </div>
-              <button type="button" className="fn-add" onClick={beginDraft}>
+              <button type="button" className="fn-add" onClick={() => beginDraft()}>
                 {t("addNote", locale)}
               </button>
             </div>
+            <DetailStrip
+              session={session}
+              notes={doc.notes}
+              fps={doc.fps}
+              editorStart={draftStart}
+              editorEnd={draftEnd}
+            />
             <main className="fn-notes">
               {fields?.isNew && (
                 <NoteEditor
@@ -427,11 +516,14 @@ export function NotePanel({ session, project, actionRef, storageKey }: NotePanel
                   cancel={cancelFields}
                   startNow={handleStart}
                   endNow={handleEnd}
+                  session={session}
                   removeEnd={() => setFields({ ...fields, end: "" })}
                   invalidTime={invalidTime}
+                  clearValidation={() => setInvalidTime(false)}
                   textareaRef={textareaRef}
                   fps={doc.fps}
                   locale={locale}
+                  dictation={dictation}
                 />
               )}
               {!doc.notes.length && !fields && (
@@ -453,14 +545,22 @@ export function NotePanel({ session, project, actionRef, storageKey }: NotePanel
                     cancel={cancelFields}
                     startNow={handleStart}
                     endNow={handleEnd}
+                    session={session}
                     removeEnd={() => setFields({ ...fields, end: "" })}
                     invalidTime={invalidTime}
+                    clearValidation={() => setInvalidTime(false)}
                     textareaRef={textareaRef}
                     fps={doc.fps}
                     locale={locale}
+                    dictation={dictation}
                   />
                 ) : (
-                  <article className="fn-note" key={note.id}>
+                  <article
+                    className="fn-note"
+                    key={note.id}
+                    onPointerEnter={() => setHoveredNoteId(note.id)}
+                    onPointerLeave={() => setHoveredNoteId(null)}
+                  >
                     <div className="fn-note-top">
                       <button
                         type="button"
@@ -490,6 +590,31 @@ export function NotePanel({ session, project, actionRef, storageKey }: NotePanel
                         {note.end === null ? "" : `–f${Math.round(note.end * doc.fps)}`}
                       </span>
                       <div className="fn-note-actions">
+                        {note.end !== null && (
+                          <button
+                            type="button"
+                            className={`fn-small-action fn-loop-action${loopingRange?.id === note.id ? " fn-loop-action--active" : ""}`}
+                            onClick={() =>
+                              loopingRange?.id === note.id
+                                ? session.command("stopLoop")
+                                : session.command("loop", {
+                                    id: note.id,
+                                    start: note.start,
+                                    end: note.end ?? note.start,
+                                  })
+                            }
+                            aria-label={t(
+                              loopingRange?.id === note.id ? "stopLoop" : "loopRange",
+                              locale,
+                            )}
+                            title={t(
+                              loopingRange?.id === note.id ? "stopLoop" : "loopRange",
+                              locale,
+                            )}
+                          >
+                            {loopingRange?.id === note.id ? "■" : "↻"}
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="fn-small-action"
@@ -508,6 +633,11 @@ export function NotePanel({ session, project, actionRef, storageKey }: NotePanel
                         </button>
                       </div>
                     </div>
+                    {note.end !== null && (
+                      <span className="fn-range-duration">
+                        {formatRangeDuration(note, doc.fps)}
+                      </span>
+                    )}
                     <button type="button" className="fn-note-text" onClick={() => beginEdit(note)}>
                       {note.text || (
                         <span className="fn-muted">{t("notePlaceholder", locale)}</span>
@@ -547,11 +677,14 @@ interface NoteEditorProps {
   cancel: () => void;
   startNow: () => void;
   endNow: () => void;
+  session: NoteSession;
   removeEnd: () => void;
   invalidTime: boolean;
+  clearValidation: () => void;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   fps: number;
   locale: ReturnType<typeof currentLocale>;
+  dictation: ReturnType<typeof useDictation>;
 }
 
 function NoteEditor({
@@ -561,12 +694,30 @@ function NoteEditor({
   cancel,
   startNow,
   endNow,
+  session,
   removeEnd,
   invalidTime,
+  clearValidation,
   textareaRef,
   fps,
   locale,
+  dictation,
 }: NoteEditorProps) {
+  const nudge = (edge: "start" | "end", direction: -1 | 1, shiftKey: boolean) => {
+    const state = session.getSnapshot();
+    const current =
+      parseTime(fields[edge], fps) ??
+      (edge === "end" ? (parseTime(fields.start, fps) ?? state.currentTime) : state.currentTime);
+    let next = nudgeFrames(current, direction * (shiftKey ? 10 : 1), fps, state.duration);
+    const start = edge === "start" ? next : parseTime(fields.start, fps);
+    const end = edge === "end" ? next : parseTime(fields.end, fps);
+    if (edge === "start" && end !== null) next = Math.min(next, end);
+    if (edge === "end" && start !== null) next = Math.max(next, start);
+    setFields({ ...fields, [edge]: formatTime(next) });
+    clearValidation();
+    session.command("seek", next);
+  };
+
   return (
     <article className="fn-editor">
       <div className="fn-time-fields">
@@ -581,9 +732,29 @@ function NoteEditor({
             }}
             aria-label={t("start", locale)}
           />
-          <button type="button" onClick={startNow} title={t("start", locale)}>
-            {t("now", locale)}
-          </button>
+          <div className="fn-time-controls">
+            <div className="fn-time-nudges">
+              <button
+                type="button"
+                title={t("shiftTenFrames", locale)}
+                aria-label={t("nudgeBack", locale)}
+                onClick={(event) => nudge("start", -1, event.shiftKey)}
+              >
+                −1f
+              </button>
+              <button
+                type="button"
+                title={t("shiftTenFrames", locale)}
+                aria-label={t("nudgeForward", locale)}
+                onClick={(event) => nudge("start", 1, event.shiftKey)}
+              >
+                +1f
+              </button>
+            </div>
+            <button type="button" onClick={startNow} title={t("start", locale)}>
+              {t("now", locale)}
+            </button>
+          </div>
         </label>
         <label>
           <span>{t("end", locale)}</span>
@@ -597,15 +768,35 @@ function NoteEditor({
             }}
             aria-label={t("end", locale)}
           />
-          {fields.end ? (
-            <button type="button" onClick={removeEnd} title={t("removeEnd", locale)}>
-              ×
-            </button>
-          ) : (
-            <button type="button" onClick={endNow} title={t("end", locale)}>
-              {t("now", locale)}
-            </button>
-          )}
+          <div className="fn-time-controls">
+            <div className="fn-time-nudges">
+              <button
+                type="button"
+                title={t("shiftTenFrames", locale)}
+                aria-label={t("nudgeBack", locale)}
+                onClick={(event) => nudge("end", -1, event.shiftKey)}
+              >
+                −1f
+              </button>
+              <button
+                type="button"
+                title={t("shiftTenFrames", locale)}
+                aria-label={t("nudgeForward", locale)}
+                onClick={(event) => nudge("end", 1, event.shiftKey)}
+              >
+                +1f
+              </button>
+            </div>
+            {fields.end ? (
+              <button type="button" onClick={removeEnd} title={t("removeEnd", locale)}>
+                ×
+              </button>
+            ) : (
+              <button type="button" onClick={endNow} title={t("end", locale)}>
+                {t("now", locale)}
+              </button>
+            )}
+          </div>
         </label>
       </div>
       <textarea
@@ -615,6 +806,7 @@ function NoteEditor({
         placeholder={t("notePlaceholder", locale)}
         rows={3}
       />
+      <DictationControls dictation={dictation} />
       {invalidTime && <p className="fn-validation">{t("invalidTime", locale)}</p>}
       <div className="fn-editor-actions">
         <button type="button" className="fn-secondary" onClick={cancel}>

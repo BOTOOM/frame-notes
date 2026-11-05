@@ -60,6 +60,23 @@ button:disabled {
   opacity: 0.5;
 }
 
+.dictation-choice {
+  display: grid;
+  gap: 5px;
+  color: #9da9c4;
+  font-size: 11px;
+}
+
+.dictation-choice select {
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid rgba(169, 162, 255, 0.28);
+  border-radius: 8px;
+  background: #18223a;
+  color: #e8edf9;
+  font: inherit;
+}
+
 .hints {
   color: #7f8ba8;
   font-size: 10px;

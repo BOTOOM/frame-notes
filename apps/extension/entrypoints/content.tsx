@@ -1,10 +1,15 @@
 import { createRoot } from "react-dom/client";
 import { createShadowRootUi } from "wxt/utils/content-script-ui/shadow-root";
 import { injectScript } from "wxt/utils/inject-script";
+import type {
+  SpeechBridge,
+  SpeechBridgeEvent,
+  SpeechBridgeRequest,
+} from "../src/dictation/protocol";
 import { currentLocale } from "../src/i18n";
 import { parseFps } from "../src/model";
 import { NotePanel, type PanelAction, type PanelActionRef } from "../src/panel";
-import { NoteSession, type PlayerState } from "../src/session";
+import { NoteSession, type PlayerCommandValue, type PlayerState } from "../src/session";
 import "../src/content.css";
 
 interface BridgeEnvelope {
@@ -14,6 +19,9 @@ interface BridgeEnvelope {
   state?: PlayerState;
   command?: string;
   time?: number;
+  loop?: PlayerState["loopingRange"];
+  speechCommand?: SpeechBridgeRequest;
+  speechEvent?: SpeechBridgeEvent;
   action?: PanelAction;
 }
 
@@ -59,6 +67,7 @@ function isShortcut(event: KeyboardEvent): PanelAction | null {
     if (event.code === "KeyN") return "new";
     if (event.code === "KeyI") return "start";
     if (event.code === "KeyO") return "end";
+    if (event.code === "KeyV") return "dictate";
     if (event.code === "KeyM") return "minimize";
   }
   if (event.altKey && event.shiftKey && unmodified && event.code === "KeyC") return "copy";
@@ -105,6 +114,14 @@ export default defineContentScript({
 
     const postBridge = (message: Omit<BridgeEnvelope, "namespace" | "nonce">) => {
       window.postMessage({ namespace, nonce, ...message }, location.origin);
+    };
+    const speechListeners = new Set<(event: SpeechBridgeEvent) => void>();
+    const speechBridge: SpeechBridge = {
+      send: (speechCommand) => postBridge({ kind: "command", command: "speech", speechCommand }),
+      subscribe: (listener) => {
+        speechListeners.add(listener);
+        return () => speechListeners.delete(listener);
+      },
     };
 
     const removeStudio = () => {
@@ -168,7 +185,12 @@ export default defineContentScript({
       const controller = new NoteSession(
         project,
         location.origin,
-        (command, time) => postBridge({ kind: "command", command, time }),
+        (command, value?: PlayerCommandValue) =>
+          postBridge({
+            kind: "command",
+            command,
+            ...(typeof value === "number" ? { time: value } : { loop: value }),
+          }),
         currentLocale(),
       );
       session = controller;
@@ -189,6 +211,7 @@ export default defineContentScript({
               session={controller}
               project={project}
               actionRef={actionRef}
+              speechBridge={speechBridge}
               storageKey={`${controller.storageKey}:panel`}
             />,
           );
@@ -219,6 +242,16 @@ export default defineContentScript({
         return;
       }
       if (
+        event.source === window &&
+        event.origin === location.origin &&
+        message.nonce === nonce &&
+        message.kind === "speech-event" &&
+        message.speechEvent
+      ) {
+        for (const listener of speechListeners) listener(message.speechEvent);
+        return;
+      }
+      if (
         event.source !== window ||
         event.origin !== location.origin ||
         message.nonce !== nonce ||
@@ -232,6 +265,13 @@ export default defineContentScript({
         duration: Number(message.state.duration) || 0,
         paused: Boolean(message.state.paused),
         fps: parseFps(String(message.state.fps ?? 30)),
+        loopingRange:
+          message.state.loopingRange &&
+          typeof message.state.loopingRange.id === "string" &&
+          Number.isFinite(message.state.loopingRange.start) &&
+          Number.isFinite(message.state.loopingRange.end)
+            ? message.state.loopingRange
+            : null,
       };
       session?.setPlayerState(playerState);
     };

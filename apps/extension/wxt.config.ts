@@ -3,12 +3,23 @@ import { defineConfig } from "wxt";
 export default defineConfig({
   srcDir: ".",
   modules: ["@wxt-dev/module-react"],
+  vite: () => ({
+    resolve: {
+      conditions: ["onnxruntime-web-use-extern-wasm"],
+    },
+  }),
   manifest: ({ browser }) => ({
     name: "__MSG_extensionName__",
     description: "__MSG_extensionDescription__",
     default_locale: "en",
     permissions: ["storage", "activeTab"],
     host_permissions: ["http://localhost/*", "http://127.0.0.1/*"],
+    content_security_policy:
+      browser === "firefox"
+        ? "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+        : {
+            extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';",
+          },
     icons: {
       16: "icons/icon-16.png",
       32: "icons/icon-32.png",
