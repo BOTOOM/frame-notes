@@ -109,6 +109,8 @@ export default defineContentScript({
     let session: NoteSession | null = null;
     let activeUi: Awaited<ReturnType<typeof createShadowRootUi>> | null = null;
     let activeHost: HTMLElement | null = null;
+    let activeShadowRoot: ShadowRoot | null = null;
+    let themeMountObserver: MutationObserver | null = null;
     let generation = 0;
     let disposed = false;
 
@@ -124,11 +126,21 @@ export default defineContentScript({
       },
     };
 
+    const syncStudioTheme = () => {
+      const layer = activeShadowRoot?.querySelector<HTMLElement>(".fn-layer");
+      if (!layer) return;
+      if (document.documentElement.dataset.theme === "paper") layer.dataset.theme = "paper";
+      else layer.removeAttribute("data-theme");
+    };
+
     const removeStudio = () => {
       generation += 1;
+      themeMountObserver?.disconnect();
+      themeMountObserver = null;
       activeUi?.remove();
       activeUi = null;
       activeHost = null;
+      activeShadowRoot = null;
       actionRef.current = null;
       session?.dispose();
       session = null;
@@ -203,8 +215,15 @@ export default defineContentScript({
         onMount(container) {
           const rootNode = container.getRootNode();
           if (rootNode instanceof ShadowRoot) {
+            activeShadowRoot = rootNode;
             activeHost = rootNode.host instanceof HTMLElement ? rootNode.host : null;
-          } else activeHost = container.parentElement;
+            themeMountObserver?.disconnect();
+            themeMountObserver = new MutationObserver(syncStudioTheme);
+            themeMountObserver.observe(rootNode, { childList: true, subtree: true });
+          } else {
+            activeShadowRoot = null;
+            activeHost = container.parentElement;
+          }
           const root = createRoot(container);
           root.render(
             <NotePanel
@@ -215,6 +234,7 @@ export default defineContentScript({
               storageKey={`${controller.storageKey}:panel`}
             />,
           );
+          syncStudioTheme();
           return root;
         },
         onRemove(root) {
@@ -312,6 +332,12 @@ export default defineContentScript({
     const mutationObserver = new MutationObserver(reconcile);
     mutationObserver.observe(document, { childList: true, subtree: true });
     ctx.onInvalidated(() => mutationObserver.disconnect());
+    const themeObserver = new MutationObserver(syncStudioTheme);
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    ctx.onInvalidated(() => themeObserver.disconnect());
 
     void injectScript("/bridge.js", {
       keepInDom: false,

@@ -451,7 +451,32 @@ export function NotePanel({
         >
           <div className="fn-brand">
             <span className="fn-brand-mark" aria-hidden="true">
-              F
+              <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+                <title>Frame Notes logo</title>
+                <path
+                  d="M6 48h52"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M12 40v16M24 44v8M36 44v8M48 44v8"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  opacity=".5"
+                />
+                <path d="M30 48V8h22l-6 8 6 8H30" fill="var(--fn-accent)" />
+                <path
+                  d="M30 48V8"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                />
+              </svg>
             </span>
             <div>
               <strong>{t("appName", locale)}</strong>
