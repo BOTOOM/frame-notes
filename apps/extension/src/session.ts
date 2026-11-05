@@ -1,8 +1,8 @@
 import { storage } from "wxt/utils/storage";
-import { mergeNotes, readProjectNotes, syncProjectNotes } from "./file-sync";
+import { mergeNotes, needsMarkdownSync, readProjectNotes, syncProjectNotes } from "./file-sync";
 import { emptyNotesDoc, type Locale, type NotesDoc, sortNotes } from "./model";
 
-export type SyncStatus = "loading" | "syncing" | "synced" | "local";
+export type SyncStatus = "loading" | "syncing" | "synced" | "local" | "error";
 
 export interface PlayerState {
   currentTime: number;
@@ -35,6 +35,7 @@ export class NoteSession {
   private readonly syncStatusListeners = new Set<() => void>();
   private readonly durationListeners = new Set<() => void>();
   private readonly versions = new Map<string, string | null>();
+  private readonly deletedIds = new Set<string>();
   private state: SessionState;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private writeQueue: Promise<void> = Promise.resolve();
@@ -118,6 +119,7 @@ export class NoteSession {
         selected = { ...selected, fps: this.state.fps };
         shouldWrite = true;
       }
+      if (selected && needsMarkdownSync(remote.markdown, selected, this.locale)) shouldWrite = true;
       if (selected) {
         if (selected !== this.state.doc) this.publish({ doc: selected });
         await this.storeLocal(selected);
@@ -158,6 +160,11 @@ export class NoteSession {
   }
 
   updateNotes(notes: NotesDoc["notes"]): void {
+    const nextIds = new Set(notes.map((note) => note.id));
+    for (const note of this.state.doc.notes) {
+      if (!nextIds.has(note.id)) this.deletedIds.add(note.id);
+    }
+    for (const note of notes) this.deletedIds.delete(note.id);
     const doc: NotesDoc = {
       ...this.state.doc,
       updatedAt: new Date().toISOString(),
@@ -174,8 +181,11 @@ export class NoteSession {
 
   dispose(): void {
     this.disposed = true;
-    if (this.debounceTimer !== null) clearTimeout(this.debounceTimer);
-    this.debounceTimer = null;
+    if (this.debounceTimer !== null) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+      void this.queueWrite(this.state.doc, true);
+    }
     this.listeners.clear();
     this.documentListeners.clear();
     this.syncStatusListeners.clear();
@@ -219,14 +229,29 @@ export class NoteSession {
     }, 800);
   }
 
-  private queueWrite(doc: NotesDoc): Promise<void> {
+  private queueWrite(doc: NotesDoc, allowDisposed = false): Promise<void> {
     this.writeQueue = this.writeQueue.then(async () => {
-      if (this.disposed) return;
+      if (this.disposed && !allowDisposed) return;
       try {
-        await syncProjectNotes(doc, this.versions, this.locale);
-        if (this.state.doc === doc) this.publish({ syncStatus: "synced" });
+        const deletedIds = new Set(this.deletedIds);
+        const synced = await syncProjectNotes(doc, this.versions, this.locale, fetch, deletedIds);
+        for (const id of deletedIds) this.deletedIds.delete(id);
+        if (this.state.doc === doc) {
+          if (synced !== doc) {
+            this.publish({ doc: synced });
+            await this.storeLocal(synced);
+          }
+          this.publish({ syncStatus: "synced" });
+        } else if (synced !== doc) {
+          const merged = mergeNotes(this.state.doc, synced, this.deletedIds);
+          if (merged && merged !== this.state.doc) {
+            this.publish({ doc: merged });
+            await this.storeLocal(merged);
+            void this.queueWrite(merged);
+          }
+        }
       } catch {
-        if (this.state.doc === doc) this.publish({ syncStatus: "local" });
+        if (this.state.doc === doc) this.publish({ syncStatus: "error" });
       }
     });
     return this.writeQueue;

@@ -191,6 +191,10 @@ export function NotePanel({ session, project, actionRef, storageKey }: NotePanel
   };
 
   const beginEdit = (note: Note) => {
+    if (fields) {
+      if (fields.id !== note.id) setToast(t("finishEditing", locale));
+      return;
+    }
     previousFocus.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     lastEditedId.current = note.id;
@@ -411,7 +415,9 @@ export function NotePanel({ session, project, actionRef, storageKey }: NotePanel
                     ? t("saving", locale)
                     : syncStatus === "local"
                       ? t("localOnly", locale)
-                      : t("synced", locale)}
+                      : syncStatus === "error"
+                        ? t("syncError", locale)
+                        : t("synced", locale)}
                 </span>
               </div>
               <button type="button" className="fn-add" onClick={beginDraft}>
