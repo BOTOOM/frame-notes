@@ -1,0 +1,23 @@
+{
+  "extensionName": {
+    "message": "Frame Notes"
+  },
+  "extensionDescription": {
+    "message": "Time-range review notes for HyperFrames Studio"
+  },
+  "commandNewNote": {
+    "message": "Start a review note"
+  },
+  "commandSetStart": {
+    "message": "Set note start to the playhead"
+  },
+  "commandSetEnd": {
+    "message": "Set note end to the playhead"
+  },
+  "commandCopy": {
+    "message": "Copy all review notes"
+  },
+  "commandToggle": {
+    "message": "Minimize or expand Frame Notes"
+  }
+}

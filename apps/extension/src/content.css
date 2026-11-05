@@ -1,0 +1,570 @@
+:host {
+  all: initial;
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  display: block;
+  pointer-events: none;
+}
+
+.fn-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  pointer-events: none;
+  color: #e8edf9;
+  font:
+    13px / 1.45 Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  color-scheme: dark;
+}
+
+.fn-layer *,
+.fn-layer *::before,
+.fn-layer *::after {
+  box-sizing: border-box;
+}
+
+.fn-layer button,
+.fn-layer input,
+.fn-layer textarea {
+  font: inherit;
+}
+
+.fn-panel {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  width: min(356px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow: hidden;
+  border: 1px solid rgba(160, 178, 221, 0.2);
+  border-radius: 16px;
+  background:
+    radial-gradient(ellipse at 100% 0%, rgba(97, 89, 210, 0.15), transparent 42%), #101626;
+  box-shadow:
+    0 18px 54px rgba(2, 6, 18, 0.56),
+    0 2px 10px rgba(0, 0, 0, 0.24);
+  pointer-events: auto;
+  color: #e8edf9;
+}
+
+.fn-panel--minimized {
+  width: auto;
+  max-height: none;
+  border-radius: 999px;
+}
+
+.fn-header {
+  display: flex;
+  min-height: 54px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px 9px 14px;
+  border-bottom: 1px solid rgba(148, 164, 201, 0.12);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.fn-header:active {
+  cursor: grabbing;
+}
+
+.fn-brand {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.fn-brand-mark {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(176, 173, 255, 0.35);
+  border-radius: 10px;
+  background: linear-gradient(145deg, #655adc, #373c81);
+  color: white;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.fn-brand div {
+  display: grid;
+  min-width: 0;
+}
+
+.fn-brand strong {
+  font-size: 13px;
+  letter-spacing: 0.01em;
+}
+
+.fn-brand div span {
+  overflow: hidden;
+  color: #8793b1;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fn-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fn-icon-button,
+.fn-small-action {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #9ba8c6;
+  cursor: pointer;
+  font-size: 17px;
+}
+
+.fn-icon-button:hover,
+.fn-small-action:hover {
+  background: rgba(156, 170, 207, 0.12);
+  color: #fff;
+}
+
+.fn-count-pill {
+  padding: 6px 11px;
+  border: 1px solid rgba(167, 175, 222, 0.24);
+  border-radius: 999px;
+  background: #1a2440;
+  color: #e8edf9;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.fn-toolbar {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+}
+
+.fn-total {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #acb7d1;
+  font-size: 12px;
+}
+
+.fn-total strong {
+  color: #f1f4ff;
+  font-size: 15px;
+}
+
+.fn-sync {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  color: #8390ae;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.fn-panel .fn-sync > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #50bd91;
+}
+
+.fn-panel .fn-sync--syncing > span,
+.fn-panel .fn-sync--loading > span {
+  background: #e6b65c;
+}
+
+.fn-panel .fn-sync--local > span {
+  background: #ec8a79;
+}
+
+.fn-add,
+.fn-primary,
+.fn-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(169, 162, 255, 0.37);
+  border-radius: 9px;
+  background: linear-gradient(180deg, #6860da, #554bc0);
+  box-shadow: 0 5px 14px rgba(45, 38, 138, 0.3);
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.fn-add:hover,
+.fn-primary:hover {
+  background: linear-gradient(180deg, #7770eb, #6359d3);
+}
+
+.fn-notes {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+  padding: 0 10px 10px;
+  scrollbar-color: #3c4665 transparent;
+  scrollbar-width: thin;
+}
+
+.fn-empty {
+  display: flex;
+  min-height: 190px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  border: 1px dashed rgba(143, 158, 192, 0.2);
+  border-radius: 12px;
+  color: #b9c3dc;
+  text-align: center;
+}
+
+.fn-empty-icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 10px;
+  place-items: center;
+  border: 1px solid rgba(148, 157, 209, 0.18);
+  border-radius: 13px;
+  background: #1a2340;
+  color: #9e9af1;
+  font-size: 22px;
+}
+
+.fn-empty strong {
+  color: #e6ebf8;
+  font-size: 13px;
+}
+
+.fn-empty p {
+  max-width: 225px;
+  margin: 6px 0 0;
+  color: #8996b4;
+  font-size: 11px;
+}
+
+.fn-note,
+.fn-editor {
+  padding: 10px;
+  border: 1px solid rgba(144, 160, 198, 0.15);
+  border-radius: 11px;
+  background: rgba(23, 33, 56, 0.78);
+}
+
+.fn-note-top {
+  display: flex;
+  min-height: 25px;
+  align-items: center;
+  gap: 5px;
+}
+
+.fn-time-chip {
+  padding: 3px 7px;
+  border: 1px solid rgba(124, 132, 227, 0.24);
+  border-radius: 6px;
+  background: rgba(96, 91, 196, 0.18);
+  color: #cbc9ff;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+
+.fn-time-chip:hover {
+  border-color: rgba(163, 157, 255, 0.62);
+  background: rgba(96, 91, 196, 0.33);
+}
+
+.fn-time-chip--end {
+  color: #a8d6d1;
+}
+
+.fn-range-arrow {
+  color: #7785a4;
+  font-size: 11px;
+}
+
+.fn-frame-chip {
+  margin-left: 3px;
+  color: #7e8aa7;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.fn-note-actions {
+  display: flex;
+  margin-left: auto;
+  gap: 2px;
+  opacity: 0.75;
+}
+
+.fn-small-action {
+  width: 24px;
+  height: 24px;
+  font-size: 13px;
+}
+
+.fn-small-action.fn-danger:hover {
+  background: rgba(229, 111, 109, 0.14);
+  color: #ff9993;
+}
+
+.fn-note-text {
+  display: block;
+  width: 100%;
+  margin-top: 5px;
+  padding: 2px 0 0;
+  border: 0;
+  background: transparent;
+  color: #dbe2f2;
+  cursor: text;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.fn-muted {
+  color: #76839f;
+  font-style: italic;
+}
+
+.fn-time-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+
+.fn-time-fields label {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 5px;
+  color: #95a2c0;
+  font-size: 10px;
+}
+
+.fn-panel .fn-time-fields label span {
+  grid-column: 1 / -1;
+}
+
+.fn-time-fields input,
+.fn-editor textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(147, 162, 198, 0.2);
+  border-radius: 7px;
+  outline: none;
+  background: #10182b;
+  color: #eef2fc;
+  font-variant-numeric: tabular-nums;
+}
+
+.fn-time-fields input {
+  height: 28px;
+  padding: 0 7px;
+  font-size: 11px;
+}
+
+.fn-time-fields input:focus,
+.fn-editor textarea:focus {
+  border-color: #8179e8;
+  box-shadow: 0 0 0 2px rgba(110, 102, 222, 0.15);
+}
+
+.fn-time-fields button {
+  min-width: 40px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(91, 125, 155, 0.15);
+  color: #a7d6d0;
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.fn-editor textarea {
+  display: block;
+  min-height: 68px;
+  resize: vertical;
+  padding: 8px;
+  color: #edf1fc;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.fn-editor textarea::placeholder {
+  color: #6f7b96;
+}
+
+.fn-validation {
+  margin: 6px 0 0;
+  color: #ff9c91;
+  font-size: 10px;
+}
+
+.fn-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.fn-secondary {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(143, 159, 196, 0.2);
+  border-radius: 7px;
+  background: transparent;
+  color: #abb6cf;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.fn-primary {
+  min-height: 30px;
+  border-radius: 7px;
+  font-size: 11px;
+}
+
+.fn-footer {
+  display: grid;
+  gap: 5px;
+  padding: 10px 13px 11px;
+  border-top: 1px solid rgba(148, 164, 201, 0.12);
+}
+
+.fn-copy {
+  min-height: 31px;
+  border-color: rgba(150, 164, 198, 0.18);
+  background: #1b2540;
+  box-shadow: none;
+  color: #c7d0e6;
+  font-size: 11px;
+}
+
+.fn-copy:hover {
+  background: #253152;
+  color: white;
+}
+
+.fn-footer p {
+  margin: 2px 0 0;
+  color: #7784a1;
+  font-size: 9px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.fn-toast {
+  position: absolute;
+  right: 12px;
+  bottom: 55px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid rgba(164, 178, 214, 0.22);
+  border-radius: 9px;
+  background: #283350;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  color: #e7ecf8;
+  font-size: 11px;
+}
+
+.fn-toast button {
+  padding: 2px 4px;
+  border: 0;
+  background: transparent;
+  color: #b9b4ff;
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.fn-markers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.fn-marker-point,
+.fn-marker-range {
+  position: absolute;
+  z-index: 1;
+  display: block;
+  padding: 0;
+  border: 0;
+  pointer-events: none;
+}
+
+.fn-marker-point {
+  width: 3px;
+  height: 13px;
+  border-radius: 2px;
+  background: #ffb45b;
+  box-shadow:
+    0 0 0 1px rgba(15, 19, 35, 0.75),
+    0 0 8px rgba(255, 180, 91, 0.58);
+}
+
+.fn-marker-range {
+  height: 7px;
+  border: 1px solid rgba(255, 220, 148, 0.78);
+  border-radius: 4px;
+  background: rgba(249, 173, 74, 0.77);
+  box-shadow: 0 0 8px rgba(255, 180, 91, 0.42);
+}
+
+.fn-marker-flag {
+  position: absolute;
+  z-index: 2;
+  display: block;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px 4px 1px 1px;
+  appearance: none;
+  background: #ffb45b;
+  box-shadow:
+    0 0 0 1px rgba(15, 19, 35, 0.75),
+    0 0 8px rgba(255, 180, 91, 0.58);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.fn-marker-flag:hover,
+.fn-marker-flag:focus-visible,
+.fn-marker-point[data-hovered="true"],
+.fn-marker-range[data-hovered="true"] {
+  filter: brightness(1.25);
+}
