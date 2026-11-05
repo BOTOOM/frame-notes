@@ -1,0 +1,8 @@
+{
+  "framework": "nextjs",
+  "installCommand": "pnpm install",
+  "buildCommand": "pnpm build",
+  "devCommand": "pnpm dev",
+  "outputDirectory": ".next",
+  "ignoreCommand": "[ -z \"$VERCEL_GIT_PREVIOUS_SHA\" ] && exit 1; (git diff --quiet $VERCEL_GIT_PREVIOUS_SHA $VERCEL_GIT_COMMIT_SHA -- apps/landing 2>/dev/null || [ \"$GITHUB_ACTIONS\" = \"true\" ]) && exit 1 || exit 0"
+}

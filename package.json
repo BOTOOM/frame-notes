@@ -4,10 +4,12 @@
   "packageManager": "pnpm@12.16.1",
   "scripts": {
     "lint": "biome check apps tests",
-    "typecheck": "pnpm --filter @frame-notes/extension exec wxt prepare && pnpm --filter @frame-notes/extension exec tsc --noEmit && pnpm exec tsc --noEmit -p tsconfig.tests.json",
+    "typecheck": "pnpm --filter @frame-notes/extension exec wxt prepare && pnpm --filter @frame-notes/extension exec tsc --noEmit && pnpm --filter @frame-notes/landing typecheck && pnpm exec tsc --noEmit -p tsconfig.tests.json",
     "test": "vitest run",
     "build": "pnpm --filter @frame-notes/extension build",
     "build:firefox": "pnpm --filter @frame-notes/extension build:firefox",
+    "build:landing": "pnpm --filter @frame-notes/landing build",
+    "dev:landing": "pnpm --filter @frame-notes/landing dev",
     "zip": "pnpm --filter @frame-notes/extension zip",
     "zip:firefox": "pnpm --filter @frame-notes/extension zip:firefox",
     "dev": "pnpm --filter @frame-notes/extension dev",
