@@ -56,6 +56,17 @@ function registerChromeWhisperHostManager(): void {
   let ready = false;
   let ensurePromise: Promise<void> | null = null;
   let resolveReady: (() => void) | null = null;
+  let connectedWhisperPorts = 0;
+  let ensureRequests = 0;
+  let closePromise: Promise<void> | null = null;
+
+  browser.runtime.onConnect.addListener((port) => {
+    if (port.name !== "frame-notes-whisper") return;
+    connectedWhisperPorts += 1;
+    port.onDisconnect.addListener(() => {
+      connectedWhisperPorts = Math.max(0, connectedWhisperPorts - 1);
+    });
+  });
 
   const waitForReady = () => {
     if (ready) return Promise.resolve();
@@ -80,9 +91,35 @@ function registerChromeWhisperHostManager(): void {
       resolveReady?.();
       return;
     }
+    if (type === "frame-notes:whisper-host-idle") {
+      if (connectedWhisperPorts !== 0 || ensureRequests !== 0 || closePromise) return;
+      closePromise = (async () => {
+        if (
+          (await getOffscreenContextCount()) === 0 ||
+          connectedWhisperPorts !== 0 ||
+          ensureRequests !== 0
+        )
+          return;
+        const chromeApi = Reflect.get(globalThis, "chrome");
+        const offscreen = Reflect.get(chromeApi, "offscreen");
+        const closeDocument = Reflect.get(offscreen, "closeDocument");
+        if (typeof closeDocument !== "function") throw new Error("offscreen API unavailable");
+        await Reflect.apply(closeDocument, offscreen, []);
+        ready = false;
+      })().finally(() => {
+        closePromise = null;
+      });
+      void closePromise.then(
+        () => sendResponse({ ok: true }),
+        () => sendResponse({ ok: false }),
+      );
+      return true;
+    }
     if (type !== "frame-notes:ensure-whisper-host") return;
 
+    ensureRequests += 1;
     ensurePromise ??= (async () => {
+      await closePromise;
       if (ready) return;
       const existingContexts = await getOffscreenContextCount();
       if (existingContexts > 0) {
@@ -110,12 +147,17 @@ function registerChromeWhisperHostManager(): void {
       ensurePromise = null;
     });
     void ensurePromise.then(
-      () => sendResponse({ ok: true }),
-      (error: unknown) =>
+      () => {
+        ensureRequests = Math.max(0, ensureRequests - 1);
+        sendResponse({ ok: true });
+      },
+      (error: unknown) => {
+        ensureRequests = Math.max(0, ensureRequests - 1);
         sendResponse({
           ok: false,
           error: error instanceof Error ? error.message : "Whisper host unavailable",
-        }),
+        });
+      },
     );
     return true;
   });

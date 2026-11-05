@@ -62,6 +62,40 @@ export function registerWhisperHost(): void {
   let whisperPipeline: ReturnType<typeof createWhisperPipeline> | null = null;
   let whisperDevice: "webgpu" | "wasm" = "wasm";
   let whisperDtype: "fp16" | "q8" = "q8";
+  let connectedPorts = 0;
+  let activeTranscriptions = 0;
+  let idleTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const clearIdleTimer = () => {
+    if (idleTimer !== null) clearTimeout(idleTimer);
+    idleTimer = null;
+  };
+
+  const scheduleIdleRelease = () => {
+    if (connectedPorts !== 0 || activeTranscriptions !== 0) return;
+    clearIdleTimer();
+    idleTimer = setTimeout(() => {
+      idleTimer = null;
+      if (connectedPorts !== 0 || activeTranscriptions !== 0) return;
+      const pipeline = whisperPipeline;
+      whisperPipeline = null;
+      if (browser.runtime.getManifest().manifest_version === 2 && pipeline) {
+        void pipeline
+          .then((transcriber) => {
+            const dispose = Reflect.get(transcriber, "dispose");
+            if (typeof dispose === "function")
+              return Promise.resolve(Reflect.apply(dispose, transcriber, [])).catch(
+                () => undefined,
+              );
+          })
+          .catch(() => undefined);
+      } else if (browser.runtime.getManifest().manifest_version === 3) {
+        void browser.runtime
+          .sendMessage({ type: "frame-notes:whisper-host-idle" })
+          .catch(() => undefined);
+      }
+    }, 60_000);
+  };
 
   const loadWhisperPipeline = async (
     port: ExtensionRuntimePort,
@@ -112,6 +146,8 @@ export function registerWhisperHost(): void {
 
   browser.runtime.onConnect.addListener((port) => {
     if (port.name !== "frame-notes-whisper") return;
+    connectedPorts += 1;
+    clearIdleTimer();
     let language = "english";
     const chunks: Float32Array[] = [];
     let modelPromise: ReturnType<typeof loadWhisperPipeline> | null = null;
@@ -147,6 +183,8 @@ export function registerWhisperHost(): void {
           return;
         }
         cancelled = false;
+        activeTranscriptions += 1;
+        clearIdleTimer();
         void (async () => {
           try {
             const transcriber = await pendingPipeline;
@@ -164,6 +202,9 @@ export function registerWhisperHost(): void {
             if (text && !cancelled) postPort(port, { type: "result", text });
           } catch {
             postPort(port, { type: "error", code: "transcription-failed" });
+          } finally {
+            activeTranscriptions = Math.max(0, activeTranscriptions - 1);
+            scheduleIdleRelease();
           }
         })();
       } else if (value.type === "cancel") {
@@ -173,6 +214,8 @@ export function registerWhisperHost(): void {
     });
     port.onDisconnect.addListener(() => {
       chunks.length = 0;
+      connectedPorts = Math.max(0, connectedPorts - 1);
+      scheduleIdleRelease();
     });
   });
 }

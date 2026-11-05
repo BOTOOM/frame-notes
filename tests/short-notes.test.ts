@@ -99,4 +99,10 @@ describe("local dictation helpers", () => {
     });
     expect(insertAtCaret("hello, world", "again", 6, 6).value).toBe("hello, again world");
   });
+
+  it("appends consecutive final transcripts at the updated caret", () => {
+    const first = insertAtCaret("", "hello", 0);
+    const second = insertAtCaret(first.value, "world", first.caret);
+    expect(second).toEqual({ value: "hello world", caret: 11 });
+  });
 });
