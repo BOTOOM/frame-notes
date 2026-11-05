@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   chunkPcm,
+  decodePcmChunk,
+  encodePcmChunk,
   insertAtCaret,
   joinPcmChunks,
   selectDictationEngine,
@@ -31,6 +33,13 @@ describe("timeline detail math", () => {
     expect(nudgeFrames(3.433, -1, 30, 10)).toBeCloseTo(102 / 30);
     expect(nudgeFrames(0, -10, 30, 10)).toBe(0);
     expect(nudgeFrames(9.9, 10, 30, 10)).toBe(10);
+  });
+});
+
+describe("Whisper PCM transfer", () => {
+  it("round-trips Float32 samples through the port wire format", () => {
+    const samples = new Float32Array([-1, -0.25, 0, 0.125, 0.5, 1]);
+    expect(decodePcmChunk(encodePcmChunk(samples))).toEqual(samples);
   });
 });
 

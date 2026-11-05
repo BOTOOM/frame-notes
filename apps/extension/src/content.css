@@ -290,9 +290,15 @@
   background: rgba(23, 33, 56, 0.78);
 }
 
+.fn-note {
+  min-width: 0;
+}
+
 .fn-note-top {
   display: flex;
   min-height: 25px;
+  min-width: 0;
+  flex-wrap: wrap;
   align-items: center;
   gap: 5px;
 }

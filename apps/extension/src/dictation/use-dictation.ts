@@ -5,6 +5,7 @@ import {
   chunkPcm,
   type DictationEngine,
   type DictationEngineChoice,
+  encodePcmChunk,
   selectDictationEngine,
   speechLanguageCandidates,
 } from "./helpers";
@@ -770,7 +771,11 @@ export function useDictation({
         .then((samples) => {
           if (whisperSessionRef.current !== whisper) return;
           for (const chunk of chunkPcm(samples)) {
-            whisper.port.postMessage({ type: "pcm", samples: chunk });
+            whisper.port.postMessage({
+              type: "pcm",
+              samples: encodePcmChunk(chunk),
+              sampleCount: chunk.length,
+            });
           }
           whisper.port.postMessage({ type: "finish" });
         })

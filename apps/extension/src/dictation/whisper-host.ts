@@ -1,6 +1,8 @@
+import { decodePcmChunk } from "./helpers";
+
 type WhisperPortRequest =
   | { type: "prepare"; consented: boolean; language: string }
-  | { type: "pcm"; samples: Float32Array }
+  | { type: "pcm"; samples: string; sampleCount: number }
   | { type: "finish" }
   | { type: "cancel" }
   | { type: "keepalive" };
@@ -43,7 +45,16 @@ function validWhisperRequest(value: unknown): value is WhisperPortRequest {
       typeof Reflect.get(value, "language") === "string"
     );
   }
-  if (type === "pcm") return Reflect.get(value, "samples") instanceof Float32Array;
+  if (type === "pcm") {
+    const samples = Reflect.get(value, "samples");
+    const sampleCount = Reflect.get(value, "sampleCount");
+    return (
+      typeof samples === "string" &&
+      typeof sampleCount === "number" &&
+      Number.isSafeInteger(sampleCount) &&
+      sampleCount >= 0
+    );
+  }
   return type === "finish" || type === "cancel" || type === "keepalive";
 }
 
@@ -121,7 +132,14 @@ export function registerWhisperHost(): void {
           postPort(port, { type: "error", code: "model-load-failed" });
         });
       } else if (value.type === "pcm") {
-        if (consented && modelPromise) chunks.push(value.samples);
+        if (consented && modelPromise) {
+          try {
+            const samples = decodePcmChunk(value.samples);
+            if (samples.length === value.sampleCount) chunks.push(samples);
+          } catch {
+            return;
+          }
+        }
       } else if (value.type === "finish") {
         const pendingPipeline = modelPromise;
         if (!consented || !pendingPipeline) {

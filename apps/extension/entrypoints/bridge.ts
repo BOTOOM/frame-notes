@@ -49,6 +49,9 @@ export default defineUnlistedScript(() => {
   let loopAnimationFrame = 0;
   let lastLoopSeekAt = 0;
   let pausedSince: number | null = null;
+  let loopWasPaused: boolean | null = null;
+  let studioLoopActive = false;
+  let studioLoopEnabledByExtension = false;
   let loopSeekInProgress = false;
   const speechApi = findSpeechRecognitionApi(window);
   let speechRecognition: SpeechRecognitionInstance | null = null;
@@ -177,13 +180,43 @@ export default defineUnlistedScript(() => {
     }
   };
 
-  const stopLoop = () => {
+  const dispatchStudioShortcut = (key: string, code: string, shiftKey = false): boolean => {
+    if (!document.body) return false;
+    const event = new KeyboardEvent("keydown", {
+      key,
+      code,
+      shiftKey,
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+    });
+    document.body.dispatchEvent(event);
+    return event.defaultPrevented;
+  };
+
+  const stopLoop = (restorePlayback = true) => {
     if (!loopingRange) return;
+    const wasPaused = loopWasPaused;
+    if (studioLoopActive) {
+      const loopButton = document.querySelector<HTMLButtonElement>(
+        'button[aria-label="Enable loop playback"], button[aria-label="Disable loop playback"]',
+      );
+      if (studioLoopEnabledByExtension && loopButton?.getAttribute("aria-pressed") === "true") {
+        dispatchStudioShortcut("L", "KeyL", true);
+      }
+      studioLoopActive = false;
+      studioLoopEnabledByExtension = false;
+    }
     loopingRange = null;
+    loopWasPaused = null;
     pausedSince = null;
     if (loopAnimationFrame) window.cancelAnimationFrame(loopAnimationFrame);
     loopAnimationFrame = 0;
     scheduleState();
+    if (restorePlayback && wasPaused !== null) {
+      if (wasPaused) pausePlayer();
+      else resumePlayer();
+    }
   };
 
   const seekPlayer = (seconds: number, isLoopSeek = false) => {
@@ -221,23 +254,46 @@ export default defineUnlistedScript(() => {
   };
 
   const resumePlayer = () => {
-    if (!player?.paused) return;
     const button = document.querySelector<HTMLButtonElement>('button[aria-label="Play"]');
     if (button && !button.disabled) {
-      button.click();
+      if (!dispatchStudioShortcut(" ", "Space")) button.click();
       return;
     }
-    player.play();
+    if (player?.paused) player.play();
   };
 
   const pausePlayer = () => {
     if (!player || player.paused) return;
     const button = document.querySelector<HTMLButtonElement>('button[aria-label="Pause"]');
     if (button && !button.disabled) {
-      button.click();
+      if (!dispatchStudioShortcut(" ", "Space")) button.click();
       return;
     }
     player.pause();
+  };
+
+  const startStudioLoop = (start: number, end: number): boolean => {
+    const loopButton = document.querySelector<HTMLButtonElement>(
+      'button[aria-label="Enable loop playback"], button[aria-label="Disable loop playback"]',
+    );
+    const loopWasEnabled = loopButton?.getAttribute("aria-pressed") === "true";
+    if (!loopWasEnabled && !dispatchStudioShortcut("L", "KeyL", true)) return false;
+    const restoreLoopState = () => {
+      if (!loopWasEnabled) dispatchStudioShortcut("L", "KeyL", true);
+    };
+    seekPlayer(start, true);
+    if (!dispatchStudioShortcut("i", "KeyI")) {
+      restoreLoopState();
+      return false;
+    }
+    seekPlayer(end, true);
+    if (!dispatchStudioShortcut("o", "KeyO")) {
+      restoreLoopState();
+      return false;
+    }
+    seekPlayer(start, true);
+    studioLoopEnabledByExtension = !loopWasEnabled;
+    return true;
   };
 
   const runLoopFrame = () => {
@@ -247,10 +303,10 @@ export default defineUnlistedScript(() => {
 
     const now = performance.now();
     if (player.paused) {
-      if (now - lastLoopSeekAt > 250) {
+      if (now - lastLoopSeekAt > 2_500) {
         pausedSince ??= now;
-        if (now - pausedSince > 300) {
-          stopLoop();
+        if (now - pausedSince > 500) {
+          stopLoop(false);
           return;
         }
       } else {
@@ -286,8 +342,15 @@ export default defineUnlistedScript(() => {
 
     stopLoop();
     loopingRange = { id: requested.id, start, end };
+    loopWasPaused = player.paused;
     lastLoopSeekAt = performance.now();
     pausedSince = null;
+    if (startStudioLoop(start, end)) {
+      studioLoopActive = true;
+      resumePlayer();
+      scheduleState();
+      return;
+    }
     seekPlayer(start, true);
     resumePlayer();
     scheduleState();

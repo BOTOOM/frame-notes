@@ -64,6 +64,26 @@ export function joinPcmChunks(chunks: readonly Float32Array[]): Float32Array {
   return samples;
 }
 
+export function encodePcmChunk(samples: Float32Array): string {
+  const bytes = new Uint8Array(samples.buffer, samples.byteOffset, samples.byteLength);
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 32_768) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 32_768));
+  }
+  return btoa(binary);
+}
+
+export function decodePcmChunk(encoded: string): Float32Array {
+  const binary = atob(encoded);
+  if (binary.length % Float32Array.BYTES_PER_ELEMENT !== 0)
+    throw new RangeError("PCM byte length must be aligned to Float32 samples");
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return new Float32Array(bytes.buffer);
+}
+
 export interface CaretInsertion {
   value: string;
   caret: number;
