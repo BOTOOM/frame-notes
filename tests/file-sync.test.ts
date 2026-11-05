@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { mergeNotes, putFile } from "../apps/extension/src/file-sync";
-import { emptyNotesDoc } from "../apps/extension/src/model";
+import {
+  type FetchLike,
+  mergeNotes,
+  needsMarkdownSync,
+  putFile,
+  syncProjectNotes,
+} from "../apps/extension/src/file-sync";
+import { emptyNotesDoc, notesMarkdown } from "../apps/extension/src/model";
 
 describe("project file synchronization", () => {
   it("recovers a missing precondition with one If-Match retry", async () => {
@@ -116,5 +122,81 @@ describe("project file synchronization", () => {
     const remote = { ...emptyNotesDoc("demo"), updatedAt: "2026-01-02T00:00:00.000Z" };
     expect(mergeNotes(local, remote)).toBe(remote);
     expect(mergeNotes(remote, local)).toBe(remote);
+  });
+
+  it("keeps both writers' notes when a JSON write conflicts", async () => {
+    const localNote = {
+      id: "local",
+      start: 1,
+      end: null,
+      text: "local",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    const remoteNote = { ...localNote, id: "remote", text: "remote" };
+    const remoteDoc = {
+      ...emptyNotesDoc("demo"),
+      updatedAt: "2026-01-02T00:00:00.000Z",
+      notes: [remoteNote],
+    };
+    let jsonWrites = 0;
+    const fetcher: FetchLike = async (input, init) => {
+      const url = String(input);
+      if (init?.method !== "PUT") {
+        if (url.endsWith("review-notes.json")) {
+          return new Response(
+            JSON.stringify({ content: JSON.stringify(remoteDoc), version: '"v2"' }),
+            { headers: { "Content-Type": "application/json" } },
+          );
+        }
+        return new Response(null, { status: 404 });
+      }
+      if (url.endsWith("review-notes.json")) {
+        jsonWrites += 1;
+        if (jsonWrites === 1) {
+          return new Response(JSON.stringify({ currentVersion: '"v2"' }), {
+            status: 409,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        const saved = JSON.parse(String(init.body)) as { notes: unknown[] };
+        expect(saved.notes).toHaveLength(2);
+        return new Response(JSON.stringify({ version: '"v3"' }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ version: '"v4"' }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+    const doc = { ...emptyNotesDoc("demo"), notes: [localNote] };
+    const merged = await syncProjectNotes(
+      doc,
+      new Map([["review-notes.json", '"v1"']]),
+      "en",
+      fetcher,
+    );
+    expect(merged.notes.map((note) => note.id).sort()).toEqual(["local", "remote"]);
+  });
+
+  it("does not resurrect a locally deleted note after a conflict", () => {
+    const deleted = {
+      id: "deleted",
+      start: 1,
+      end: null,
+      text: "deleted",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    const local = { ...emptyNotesDoc("demo"), notes: [] };
+    const remote = { ...emptyNotesDoc("demo"), notes: [deleted] };
+    expect(mergeNotes(local, remote, new Set(["deleted"]))?.notes).toEqual([]);
+  });
+
+  it("repairs missing or stale Markdown for the selected JSON document", () => {
+    const doc = emptyNotesDoc("demo");
+    expect(needsMarkdownSync(null, doc, "en")).toBe(true);
+    expect(needsMarkdownSync("# stale", doc, "en")).toBe(true);
+    expect(needsMarkdownSync(notesMarkdown(doc, "en"), doc, "en")).toBe(false);
   });
 });

@@ -143,6 +143,8 @@ export function NotePanel({
   const panelRef = useRef<HTMLElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fieldsRef = useRef<EditFields | null>(fields);
+  const caretRef = useRef<number | null>(null);
+  const selectionRef = useRef<{ start: number; end: number } | null>(null);
   const dragRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const lastEditedId = useRef<string | null>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
@@ -156,13 +158,16 @@ export function NotePanel({
       const current = fieldsRef.current;
       if (!current) return;
       const input = textareaRef.current;
-      const insertion = insertAtCaret(
-        current.text,
-        text,
-        input?.selectionStart ?? current.text.length,
-        input?.selectionEnd ?? current.text.length,
-      );
-      setFields({ ...current, text: insertion.value });
+      const selection = selectionRef.current;
+      const selectionStart =
+        caretRef.current ?? selection?.start ?? input?.selectionStart ?? current.text.length;
+      const selectionEnd =
+        caretRef.current ?? selection?.end ?? input?.selectionEnd ?? current.text.length;
+      const insertion = insertAtCaret(current.text, text, selectionStart, selectionEnd);
+      fieldsRef.current = { ...current, text: insertion.value };
+      caretRef.current = insertion.caret;
+      selectionRef.current = null;
+      setFields((previous) => (previous ? { ...previous, text: insertion.value } : previous));
       requestAnimationFrame(() => {
         if (!textareaRef.current) return;
         textareaRef.current.focus();
@@ -248,24 +253,36 @@ export function NotePanel({
     setMinimized(false);
     persistPreferences(position, false);
     setInvalidTime(false);
-    setFields(makeFields(session.getSnapshot().currentTime));
+    caretRef.current = null;
+    selectionRef.current = null;
+    const draft = makeFields(session.getSnapshot().currentTime);
+    fieldsRef.current = draft;
+    setFields(draft);
     if (shouldPause) session.command("pause");
     requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
   const beginEdit = (note: Note) => {
+    if (fields) {
+      if (fields.id !== note.id) setToast(t("finishEditing", locale));
+      return;
+    }
     previousFocus.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     lastEditedId.current = note.id;
     setInvalidTime(false);
-    setFields({
+    caretRef.current = null;
+    selectionRef.current = null;
+    const editFields = {
       id: note.id,
       createdAt: note.createdAt,
       isNew: false,
       start: formatTime(note.start),
       end: note.end === null ? "" : formatTime(note.end),
       text: note.text,
-    });
+    };
+    fieldsRef.current = editFields;
+    setFields(editFields);
     requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
@@ -289,20 +306,37 @@ export function NotePanel({
     const notes = doc.notes.filter((note) => note.id !== nextNote.id);
     session.updateNotes(sortNotes([...notes, nextNote]));
     lastEditedId.current = nextNote.id;
+    fieldsRef.current = null;
+    caretRef.current = null;
+    selectionRef.current = null;
     setFields(null);
     setInvalidTime(false);
     restoreFocus();
   };
 
   const cancelFields = () => {
-    if (dictation.isActive) {
-      dictation.stop();
-      return;
-    }
     dictation.cancel();
+    fieldsRef.current = null;
+    caretRef.current = null;
+    selectionRef.current = null;
     setFields(null);
     setInvalidTime(false);
     restoreFocus();
+  };
+
+  const updateEditorText = (text: string, caret: number) => {
+    const current = fieldsRef.current;
+    if (!current) return;
+    const next = { ...current, text };
+    fieldsRef.current = next;
+    caretRef.current = caret;
+    selectionRef.current = null;
+    setFields(next);
+  };
+
+  const updateEditorSelection = (start: number, end: number) => {
+    selectionRef.current = { start, end };
+    caretRef.current = null;
   };
 
   const setStartToNow = () => {
@@ -518,7 +552,9 @@ export function NotePanel({
                     ? t("saving", locale)
                     : syncStatus === "local"
                       ? t("localOnly", locale)
-                      : t("synced", locale)}
+                      : syncStatus === "error"
+                        ? t("syncError", locale)
+                        : t("synced", locale)}
                 </span>
               </div>
               <button type="button" className="fn-add" onClick={() => beginDraft()}>
@@ -549,6 +585,8 @@ export function NotePanel({
                   fps={doc.fps}
                   locale={locale}
                   dictation={dictation}
+                  updateText={updateEditorText}
+                  updateSelection={updateEditorSelection}
                 />
               )}
               {!doc.notes.length && !fields && (
@@ -578,6 +616,8 @@ export function NotePanel({
                     fps={doc.fps}
                     locale={locale}
                     dictation={dictation}
+                    updateText={updateEditorText}
+                    updateSelection={updateEditorSelection}
                   />
                 ) : (
                   <article
@@ -611,7 +651,7 @@ export function NotePanel({
                         </>
                       )}
                       <div className="fn-note-actions">
-                        {note.end !== null && (
+                        {note.end !== null && note.end > note.start && (
                           <button
                             type="button"
                             className={`fn-small-action fn-loop-action${loopingRange?.id === note.id ? " fn-loop-action--active" : ""}`}
@@ -734,6 +774,8 @@ interface NoteEditorProps {
   fps: number;
   locale: ReturnType<typeof currentLocale>;
   dictation: ReturnType<typeof useDictation>;
+  updateText: (text: string, caret: number) => void;
+  updateSelection: (start: number, end: number) => void;
 }
 
 function NoteEditor({
@@ -751,6 +793,8 @@ function NoteEditor({
   fps,
   locale,
   dictation,
+  updateText,
+  updateSelection,
 }: NoteEditorProps) {
   const nudge = (edge: "start" | "end", direction: -1 | 1, shiftKey: boolean) => {
     const state = session.getSnapshot();
@@ -851,7 +895,11 @@ function NoteEditor({
       <textarea
         ref={textareaRef}
         value={fields.text}
-        onChange={(event) => setFields({ ...fields, text: event.target.value })}
+        onChange={(event) => updateText(event.target.value, event.target.selectionStart)}
+        onSelect={(event) => {
+          const input = event.currentTarget;
+          updateSelection(input.selectionStart, input.selectionEnd);
+        }}
         placeholder={t("notePlaceholder", locale)}
         rows={3}
       />

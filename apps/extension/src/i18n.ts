@@ -58,6 +58,7 @@ const strings = {
     removeEnd: "Remove end",
     save: "Save",
     saving: "Saving…",
+    syncError: "Sync failed",
     shortcuts:
       "Alt+N new · Alt+I/O range · Enter save · Shift+Enter newline · Esc cancel · Alt+Shift+C copy · Alt+M minimize",
     start: "Start",
@@ -129,6 +130,7 @@ const strings = {
     removeEnd: "Quitar fin",
     save: "Guardar",
     saving: "Guardando…",
+    syncError: "Error de sincronización",
     shortcuts:
       "Alt+N nueva · Alt+I/O rango · Enter guardar · Mayús+Enter salto · Esc cancelar · Alt+Mayús+C copiar · Alt+M minimizar",
     start: "Inicio",
