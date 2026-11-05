@@ -129,6 +129,21 @@ export default defineContentScript({
       if (document.documentElement.dataset.theme === "paper") activeHost.dataset.theme = "paper";
       else activeHost.removeAttribute("data-theme");
     };
+    let themeObserver: MutationObserver | null = null;
+    const ensureThemeObserver = () => {
+      const root = document.documentElement;
+      if (!root || themeObserver || disposed) return;
+      const observer = new MutationObserver(syncStudioTheme);
+      try {
+        observer.observe(root, {
+          attributes: true,
+          attributeFilter: ["data-theme"],
+        });
+        themeObserver = observer;
+      } catch {
+        observer.disconnect();
+      }
+    };
 
     const removeStudio = () => {
       generation += 1;
@@ -178,6 +193,7 @@ export default defineContentScript({
 
     const reconcile = () => {
       if (disposed) return;
+      ensureThemeObserver();
       const player = document.querySelector("hyperframes-player");
       const project = projectFromHash(location.hash);
       if (!player || !project) {
@@ -321,12 +337,8 @@ export default defineContentScript({
     const mutationObserver = new MutationObserver(reconcile);
     mutationObserver.observe(document, { childList: true, subtree: true });
     ctx.onInvalidated(() => mutationObserver.disconnect());
-    const themeObserver = new MutationObserver(syncStudioTheme);
-    themeObserver.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme"],
-    });
-    ctx.onInvalidated(() => themeObserver.disconnect());
+    ensureThemeObserver();
+    ctx.onInvalidated(() => themeObserver?.disconnect());
 
     void injectScript("/bridge.js", {
       keepInDom: false,

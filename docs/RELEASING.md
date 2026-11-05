@@ -29,8 +29,8 @@ To run it manually, open **Actions → Release → Run workflow** and select
 
 - `skip_tests` (default `false`): bypasses the test job; reserve for emergency
   releases.
-- `dry_run` (default `false`): calculates a release without creating it and
-  passes `--dry-run` to any configured store submission.
+- `dry_run` (default `false`): computes the next version and release notes
+  without creating a GitHub release. Store submission is skipped.
 - `publish_stores` (default `true`): set to `false` to create the GitHub
   release without submitting it to stores.
 

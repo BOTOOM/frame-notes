@@ -121,25 +121,24 @@ jobs:
           FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
           FIREFOX_GECKO_ID: ${{ vars.FIREFOX_GECKO_ID }}
           VERSION: ${{ needs.release.outputs.version }}
-          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
           args=()
 
           if [[ -n "${CHROME_EXTENSION_ID:-}" && -n "${CHROME_PUBLISHER_ID:-}" && -n "${CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL:-}" && -n "${CHROME_SERVICE_ACCOUNT_PRIVATE_KEY:-}" ]]; then
-            args+=(--chrome-zip "dist/frame-notes-${VERSION}-chrome.zip" --chrome-api-version v2)
+            args+=(--chrome-zip "$GITHUB_WORKSPACE/dist/frame-notes-${VERSION}-chrome.zip" --chrome-api-version v2)
           else
             echo "Skipping Chrome Web Store submission: required credentials are not all configured."
           fi
 
           if [[ -n "${FIREFOX_JWT_ISSUER:-}" && -n "${FIREFOX_JWT_SECRET:-}" && -n "${FIREFOX_GECKO_ID:-}" ]]; then
-            args+=(--firefox-zip "dist/frame-notes-${VERSION}-firefox.xpi" --firefox-sources-zip "dist/frame-notes-${VERSION}-sources.zip" --firefox-extension-id "$FIREFOX_GECKO_ID")
+            args+=(--firefox-zip "$GITHUB_WORKSPACE/dist/frame-notes-${VERSION}-firefox.xpi" --firefox-sources-zip "$GITHUB_WORKSPACE/dist/frame-notes-${VERSION}-sources.zip" --firefox-extension-id "$FIREFOX_GECKO_ID")
           else
             echo "Skipping Firefox AMO submission: required credentials or FIREFOX_GECKO_ID are not configured."
           fi
 
           if [[ -n "${EDGE_PRODUCT_ID:-}" && -n "${EDGE_CLIENT_ID:-}" && -n "${EDGE_API_KEY:-}" ]]; then
-            args+=(--edge-zip "dist/frame-notes-${VERSION}-chrome.zip")
+            args+=(--edge-zip "$GITHUB_WORKSPACE/dist/frame-notes-${VERSION}-chrome.zip")
           else
             echo "Skipping Microsoft Edge submission: required credentials are not all configured."
           fi
@@ -147,10 +146,6 @@ jobs:
           if [[ ${#args[@]} -eq 0 ]]; then
             echo "No store credentials are configured; skipping store submissions."
             exit 0
-          fi
-
-          if [[ "${DRY_RUN:-false}" == "true" ]]; then
-            args+=(--dry-run)
           fi
 
           pnpm --filter @frame-notes/extension exec wxt submit "${args[@]}"
