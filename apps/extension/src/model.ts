@@ -21,6 +21,23 @@ export function framesAt(time: number, fps: number): number {
   return Math.round(time * fps);
 }
 
+export function rangeDuration(note: Note, fps: number): { seconds: number; frames: number } | null {
+  if (note.end === null) return null;
+  return {
+    seconds: Math.max(0, note.end - note.start),
+    frames: Math.max(0, framesAt(note.end, fps) - framesAt(note.start, fps)),
+  };
+}
+
+export function formatDuration(seconds: number): string {
+  return `${Math.max(0, seconds).toFixed(3)} s`;
+}
+
+export function formatRangeDuration(note: Note, fps: number): string | null {
+  const duration = rangeDuration(note, fps);
+  return duration ? `${formatDuration(duration.seconds)} · ${duration.frames} f` : null;
+}
+
 export function parseFps(value: string | null | undefined): number {
   if (!value) return 30;
   const fraction = value.match(/^(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)$/);
@@ -80,10 +97,11 @@ export function copyText(doc: NotesDoc, locale: Locale): string {
       : `Review notes — ${doc.project} (${doc.notes.length} notes, ${fpsLabel(doc.fps)} fps)`;
   const entries = sortNotes(doc.notes).map((note, index) => {
     const start = framesAt(note.start, doc.fps);
+    const end = note.end === null ? null : framesAt(note.end, doc.fps);
     const time =
-      note.end === null
+      end === null
         ? `${formatTime(note.start)} (f${start})`
-        : `${formatTime(note.start)} → ${formatTime(note.end)} (f${start}–f${framesAt(note.end, doc.fps)})`;
+        : `${formatTime(note.start)} → ${formatTime(note.end ?? note.start)} (f${start}–f${end}, ${formatDuration(rangeDuration(note, doc.fps)?.seconds ?? 0)})`;
     const lines = note.text.split("\n");
     return `${index + 1}) ${time}: ${lines.join("\n   ")}`;
   });
