@@ -3,6 +3,13 @@ export interface TimeWindow {
   end: number;
 }
 
+export function timelinePixelsPerSecond(inlineWidth: string, measuredWidth: number): number {
+  const inlinePixelsPerSecond = Number.parseFloat(inlineWidth);
+  if (!Number.isFinite(inlinePixelsPerSecond) || inlinePixelsPerSecond <= 0) return measuredWidth;
+  if (Math.abs(inlinePixelsPerSecond - measuredWidth) > 1) return measuredWidth;
+  return inlinePixelsPerSecond;
+}
+
 export function detailWindow(center: number, width: number, duration: number): TimeWindow {
   if (!Number.isFinite(duration) || duration <= 0) return { start: 0, end: 0 };
   const span = Math.min(Math.max(Number.isFinite(width) ? width : 0, 0), duration);

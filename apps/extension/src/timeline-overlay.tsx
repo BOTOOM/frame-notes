@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { formatTime, type Note, sortNotes } from "./model";
+import { timelinePixelsPerSecond } from "./timeline-math";
 
 interface TimelineGeometry {
   left: number;
@@ -95,7 +96,7 @@ export function TimelineOverlay({ notes, activeNoteId, hoveredNoteId }: Timeline
           width: viewportRect.width,
           height: viewportRect.height,
           layerLeft: layerRect.left,
-          pixelsPerSecond: layerRect.width,
+          pixelsPerSecond: timelinePixelsPerSecond(layer.style.width, layerRect.width),
         });
       });
     };

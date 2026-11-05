@@ -8,7 +8,13 @@ import {
   selectDictationEngine,
   speechLanguageCandidates,
 } from "../apps/extension/src/dictation/helpers";
-import { detailWindow, nudgeFrames, timeToX, xToTime } from "../apps/extension/src/timeline-math";
+import {
+  detailWindow,
+  nudgeFrames,
+  timelinePixelsPerSecond,
+  timeToX,
+  xToTime,
+} from "../apps/extension/src/timeline-math";
 
 describe("timeline detail math", () => {
   it("centers and clamps detail windows to the composition", () => {
@@ -33,6 +39,24 @@ describe("timeline detail math", () => {
     expect(nudgeFrames(3.433, -1, 30, 10)).toBeCloseTo(102 / 30);
     expect(nudgeFrames(0, -10, 30, 10)).toBe(0);
     expect(nudgeFrames(9.9, 10, 30, 10)).toBe(10);
+  });
+});
+
+describe("timeline pixels per second", () => {
+  it("uses the inline width when layout units round the measured width", () => {
+    expect(timelinePixelsPerSecond("70.1142px", 70.109375)).toBe(70.1142);
+  });
+
+  it("uses the measured width when the inline width is empty", () => {
+    expect(timelinePixelsPerSecond("", 70)).toBe(70);
+  });
+
+  it("uses the measured width when the inline width is invalid", () => {
+    expect(timelinePixelsPerSecond("abc", 70)).toBe(70);
+  });
+
+  it("uses the measured width when the layer is scaled", () => {
+    expect(timelinePixelsPerSecond("140px", 70)).toBe(70);
   });
 });
 
