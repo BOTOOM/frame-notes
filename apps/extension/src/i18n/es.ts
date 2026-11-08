@@ -74,7 +74,8 @@ export const es: Messages = {
   shortcuts:
     "Alt+N nueva · Alt+I/O rango · Enter guardar · Mayús+Enter salto · Esc cancelar · Alt+Mayús+C copiar · Alt+M minimizar",
   start: "Inicio",
-  synced: "Sincronizado con el proyecto",
+  synced: "Sincronizado",
+  syncedTitle: "Sincronizado con el proyecto",
   shiftTenFrames: "Mayús-clic para mover diez fotogramas",
   timelineNotes: "Rangos de notas de revisión",
   undo: "Deshacer",

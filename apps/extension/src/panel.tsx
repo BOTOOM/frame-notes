@@ -318,19 +318,22 @@ export function NotePanel({
   }, [closeDeleteAllDialog, deleteAllDialogOpen]);
 
   useEffect(() => {
-    const resize = () => {
-      const bounds = panelRef.current?.getBoundingClientRect();
-      setPosition((current) =>
-        clampPosition(
-          current.left,
-          current.top,
-          bounds?.width ?? panelWidth,
-          bounds?.height ?? 500,
-        ),
-      );
+    const panel = panelRef.current;
+    if (!panel) return;
+    const clampPanel = () => {
+      const bounds = panel.getBoundingClientRect();
+      setPosition((current) => {
+        const next = clampPosition(current.left, current.top, bounds.width, bounds.height);
+        return next.left === current.left && next.top === current.top ? current : next;
+      });
     };
-    window.addEventListener("resize", resize);
-    return () => window.removeEventListener("resize", resize);
+    const resizeObserver = new ResizeObserver(clampPanel);
+    resizeObserver.observe(panel);
+    window.addEventListener("resize", clampPanel);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", clampPanel);
+    };
   }, []);
 
   useEffect(() => {
@@ -637,6 +640,15 @@ export function NotePanel({
 
   const draftStart = fields ? parseTime(fields.start, doc.fps) : null;
   const draftEnd = fields?.end.trim() ? parseTime(fields.end, doc.fps) : null;
+  const syncLabel =
+    syncStatus === "loading" || syncStatus === "syncing"
+      ? t("saving", locale)
+      : syncStatus === "local"
+        ? t("localOnly", locale)
+        : syncStatus === "error"
+          ? t("syncError", locale)
+          : t("synced", locale);
+  const syncTitle = syncStatus === "synced" ? t("syncedTitle", locale) : syncLabel;
 
   return (
     <div className="fn-layer">
@@ -769,15 +781,9 @@ export function NotePanel({
             <div className="fn-toolbar">
               <div className="fn-total">
                 <strong>{doc.notes.length}</strong> {t("notes", locale)}
-                <span className={`fn-sync fn-sync--${syncStatus}`}>
-                  <span aria-hidden="true" />
-                  {syncStatus === "loading" || syncStatus === "syncing"
-                    ? t("saving", locale)
-                    : syncStatus === "local"
-                      ? t("localOnly", locale)
-                      : syncStatus === "error"
-                        ? t("syncError", locale)
-                        : t("synced", locale)}
+                <span className={`fn-sync fn-sync--${syncStatus}`} title={syncTitle}>
+                  <span className="fn-sync-dot" aria-hidden="true" />
+                  <span className="fn-sync-label">{syncLabel}</span>
                 </span>
               </div>
               <div className="fn-toolbar-actions">

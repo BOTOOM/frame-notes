@@ -70,7 +70,8 @@ export const en = {
   shortcuts:
     "Alt+N new · Alt+I/O range · Enter save · Shift+Enter newline · Esc cancel · Alt+Shift+C copy · Alt+M minimize",
   start: "Start",
-  synced: "Synced to project",
+  synced: "Synced",
+  syncedTitle: "Synced to project",
   shiftTenFrames: "Shift-click to move ten frames",
   timelineNotes: "Review note timeline ranges",
   undo: "Undo",
