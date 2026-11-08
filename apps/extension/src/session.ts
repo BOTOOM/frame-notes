@@ -1,5 +1,11 @@
 import { storage } from "wxt/utils/storage";
-import { mergeNotes, needsMarkdownSync, readProjectNotes, syncProjectNotes } from "./file-sync";
+import {
+  mergeNotes,
+  needsMarkdownSync,
+  readProjectNotes,
+  syncProjectMarkdown,
+  syncProjectNotes,
+} from "./file-sync";
 import { emptyNotesDoc, type Locale, type NotesDoc, sortNotes } from "./model";
 
 export type SyncStatus = "loading" | "syncing" | "synced" | "local" | "error";
@@ -48,6 +54,7 @@ export class NoteSession {
   private readonly versions = new Map<string, string | null>();
   private readonly deletedIds = new Set<string>();
   private state: SessionState;
+  private pendingProjectWrites = 0;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private writeQueue: Promise<void> = Promise.resolve();
   private disposed = false;
@@ -188,12 +195,19 @@ export class NoteSession {
     this.persistAndSchedule(doc);
   }
 
-  setLocale(locale: Locale): void {
-    if (locale === this.locale) return;
+  setLocale(locale: Locale): Promise<void> {
+    if (this.disposed || locale === this.locale) return this.writeQueue;
     this.locale = locale;
-    if (this.state.doc.notes.length === 0) return;
+    if (
+      this.debounceTimer !== null ||
+      this.pendingWrite ||
+      this.hasLocalChanges ||
+      this.pendingProjectWrites > 0
+    ) {
+      return this.writeQueue;
+    }
     this.publish({ syncStatus: "syncing" });
-    this.persistAndSchedule(this.state.doc);
+    return this.queueMarkdownSync(locale);
   }
 
   updateNotes(notes: NotesDoc["notes"]): void {
@@ -275,28 +289,53 @@ export class NoteSession {
   }
 
   private queueWrite(doc: NotesDoc, allowDisposed = false): Promise<void> {
-    this.writeQueue = this.writeQueue.then(async () => {
-      if (this.disposed && !allowDisposed) return;
-      try {
-        const deletedIds = new Set(this.deletedIds);
-        const synced = await syncProjectNotes(doc, this.versions, this.locale, fetch, deletedIds);
-        for (const id of deletedIds) this.deletedIds.delete(id);
-        if (this.state.doc === doc) {
-          if (synced !== doc) {
-            this.publish({ doc: synced });
-            await this.storeLocal(synced);
+    this.pendingProjectWrites += 1;
+    this.writeQueue = this.writeQueue
+      .then(async () => {
+        if (this.disposed && !allowDisposed) return;
+        try {
+          const deletedIds = new Set(this.deletedIds);
+          const synced = await syncProjectNotes(
+            doc,
+            this.versions,
+            () => this.locale,
+            fetch,
+            deletedIds,
+          );
+          for (const id of deletedIds) this.deletedIds.delete(id);
+          if (this.state.doc === doc) {
+            if (synced !== doc) {
+              this.publish({ doc: synced });
+              await this.storeLocal(synced);
+            }
+            this.hasLocalChanges = false;
+            this.publish({ syncStatus: "synced" });
+          } else if (synced !== doc) {
+            const merged = mergeNotes(this.state.doc, synced, this.deletedIds);
+            if (merged && merged !== this.state.doc) {
+              this.publish({ doc: merged });
+              await this.storeLocal(merged);
+              void this.queueWrite(merged);
+            }
           }
-          this.publish({ syncStatus: "synced" });
-        } else if (synced !== doc) {
-          const merged = mergeNotes(this.state.doc, synced, this.deletedIds);
-          if (merged && merged !== this.state.doc) {
-            this.publish({ doc: merged });
-            await this.storeLocal(merged);
-            void this.queueWrite(merged);
-          }
+        } catch {
+          if (this.state.doc === doc) this.publish({ syncStatus: "error" });
         }
+      })
+      .finally(() => {
+        this.pendingProjectWrites -= 1;
+      });
+    return this.writeQueue;
+  }
+
+  private queueMarkdownSync(locale: Locale): Promise<void> {
+    this.writeQueue = this.writeQueue.then(async () => {
+      if (this.disposed) return;
+      try {
+        await syncProjectMarkdown(this.project, locale);
+        if (!this.disposed) this.publish({ syncStatus: "synced" });
       } catch {
-        if (this.state.doc === doc) this.publish({ syncStatus: "error" });
+        if (!this.disposed) this.publish({ syncStatus: "error" });
       }
     });
     return this.writeQueue;

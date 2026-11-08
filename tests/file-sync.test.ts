@@ -4,6 +4,7 @@ import {
   mergeNotes,
   needsMarkdownSync,
   putFile,
+  syncProjectMarkdown,
   syncProjectNotes,
 } from "../apps/extension/src/file-sync";
 import { emptyNotesDoc, notesMarkdown } from "../apps/extension/src/model";
@@ -179,6 +180,32 @@ describe("project file synchronization", () => {
     expect(merged.notes.map((note) => note.id).sort()).toEqual(["local", "remote"]);
   });
 
+  it("uses the latest locale for Markdown during a pending notes write", async () => {
+    const doc = emptyNotesDoc("demo");
+    let locale: "en" | "es" = "en";
+    let markdownWrite = "";
+    const fetcher: FetchLike = async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("review-notes.json")) locale = "es";
+      else markdownWrite = String(init?.body);
+      return new Response(JSON.stringify({ version: '"v2"' }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+
+    await syncProjectNotes(
+      doc,
+      new Map([
+        ["review-notes.json", '"json-v1"'],
+        ["review-notes.md", '"md-v1"'],
+      ]),
+      () => locale,
+      fetcher,
+    );
+
+    expect(markdownWrite).toBe(notesMarkdown(doc, "es"));
+  });
+
   it("does not resurrect a locally deleted note after a conflict", () => {
     const deleted = {
       id: "deleted",
@@ -212,5 +239,168 @@ describe("project file synchronization", () => {
     expect(needsMarkdownSync(null, doc, "en")).toBe(true);
     expect(needsMarkdownSync("# stale", doc, "en")).toBe(true);
     expect(needsMarkdownSync(notesMarkdown(doc, "en"), doc, "en")).toBe(false);
+  });
+
+  it("rewrites only Markdown from the current remote document", async () => {
+    const doc = emptyNotesDoc("demo");
+    const requests: Array<{ url: string; init?: RequestInit }> = [];
+    const fetcher: FetchLike = async (input, init) => {
+      const url = String(input);
+      requests.push({ url, init });
+      if (init?.method === "PUT") {
+        return new Response(JSON.stringify({ version: '"md-v2"' }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      const content = url.endsWith("review-notes.json")
+        ? JSON.stringify(doc)
+        : notesMarkdown(doc, "es");
+      const version = url.endsWith("review-notes.json") ? '"json-v1"' : '"md-v1"';
+      return new Response(JSON.stringify({ content, version }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+
+    await syncProjectMarkdown("demo", "en", fetcher);
+
+    const writes = requests.filter(({ init }) => init?.method === "PUT");
+    expect(writes).toHaveLength(1);
+    expect(writes[0].url).toContain("review-notes.md");
+    expect(writes[0].init?.body).toBe(notesMarkdown(doc, "en"));
+    expect(new Headers(writes[0].init?.headers).get("If-Match")).toBe('"md-v1"');
+  });
+
+  it("does not create Markdown for an untouched empty project", async () => {
+    let writes = 0;
+    const fetcher: FetchLike = async (_input, init) => {
+      if (init?.method === "PUT") writes += 1;
+      return new Response(null, { status: 404 });
+    };
+
+    await syncProjectMarkdown("demo", "en", fetcher);
+
+    expect(writes).toBe(0);
+  });
+
+  it("does not create Markdown for a zero-note document without a Markdown file", async () => {
+    const doc = emptyNotesDoc("demo");
+    let writes = 0;
+    const fetcher: FetchLike = async (input, init) => {
+      if (init?.method === "PUT") writes += 1;
+      if (String(input).endsWith("review-notes.json")) {
+        return new Response(
+          JSON.stringify({ content: JSON.stringify(doc), version: '"json-v1"' }),
+          {
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+      return new Response(null, { status: 404 });
+    };
+
+    await syncProjectMarkdown("demo", "en", fetcher);
+
+    expect(writes).toBe(0);
+  });
+
+  it("conditionally creates missing Markdown when the remote document has notes", async () => {
+    const note = {
+      id: "one",
+      start: 1,
+      end: null,
+      text: "Review this",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    const doc = { ...emptyNotesDoc("demo"), notes: [note] };
+    let markdownWrite: RequestInit | undefined;
+    const fetcher: FetchLike = async (input, init) => {
+      const url = String(input);
+      if (init?.method === "PUT") {
+        markdownWrite = init;
+        return new Response(JSON.stringify({ version: '"md-v1"' }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (url.endsWith("review-notes.json")) {
+        return new Response(
+          JSON.stringify({ content: JSON.stringify(doc), version: '"json-v1"' }),
+          { headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response(null, { status: 404 });
+    };
+
+    await syncProjectMarkdown("demo", "en", fetcher);
+
+    expect(markdownWrite?.body).toBe(notesMarkdown(doc, "en"));
+    expect(new Headers(markdownWrite?.headers).get("If-None-Match")).toBe("*");
+  });
+
+  it("does not rewrite Markdown when it already matches the locale", async () => {
+    const doc = emptyNotesDoc("demo");
+    let writes = 0;
+    const fetcher: FetchLike = async (input, init) => {
+      if (init?.method === "PUT") writes += 1;
+      const url = String(input);
+      const content = url.endsWith("review-notes.json")
+        ? JSON.stringify(doc)
+        : notesMarkdown(doc, "en");
+      return new Response(JSON.stringify({ content, version: '"v1"' }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+
+    await syncProjectMarkdown("demo", "en", fetcher);
+
+    expect(writes).toBe(0);
+  });
+
+  it("rereads Markdown and retries once after a 428 conflict", async () => {
+    const doc = emptyNotesDoc("demo");
+    const requests: Array<{ url: string; init?: RequestInit }> = [];
+    let markdownReads = 0;
+    let markdownWrites = 0;
+    const fetcher: FetchLike = async (input, init) => {
+      const url = String(input);
+      requests.push({ url, init });
+      if (init?.method === "PUT") {
+        markdownWrites += 1;
+        if (markdownWrites === 1) {
+          return new Response(JSON.stringify({ currentVersion: '"md-v2"' }), {
+            status: 428,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify({ version: '"md-v3"' }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (url.endsWith("review-notes.json")) {
+        return new Response(
+          JSON.stringify({ content: JSON.stringify(doc), version: '"json-v1"' }),
+          {
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+      markdownReads += 1;
+      return new Response(
+        JSON.stringify({
+          content: `stale-${markdownReads}`,
+          version: markdownReads === 1 ? '"md-v1"' : '"md-v2"',
+        }),
+        { headers: { "Content-Type": "application/json" } },
+      );
+    };
+
+    await syncProjectMarkdown("demo", "en", fetcher);
+
+    const writes = requests.filter(({ init }) => init?.method === "PUT");
+    expect(markdownReads).toBe(2);
+    expect(writes).toHaveLength(2);
+    expect(new Headers(writes[1].init?.headers).get("If-Match")).toBe('"md-v2"');
+    expect(writes[1].init?.body).toBe(notesMarkdown(doc, "en"));
+    expect(writes.every(({ url }) => url.endsWith("review-notes.md"))).toBe(true);
   });
 });
