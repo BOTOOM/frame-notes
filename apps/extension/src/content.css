@@ -163,6 +163,116 @@
   gap: 6px;
 }
 
+.fn-toolbar-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.fn-delete-all {
+  color: var(--fn-danger);
+}
+
+.fn-delete-all:not(:disabled):hover {
+  background: var(--fn-danger-wash);
+  color: var(--fn-danger);
+}
+
+.fn-language-control {
+  position: relative;
+}
+
+.fn-language-menu {
+  position: absolute;
+  z-index: 3;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  min-width: 150px;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--fn-border-strong);
+  border-radius: 8px;
+  background: var(--fn-surface);
+  box-shadow: 0 8px 24px var(--fn-shadow);
+}
+
+.fn-language-menu button {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--fn-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.fn-language-menu button:hover,
+.fn-language-menu button:focus-visible {
+  background: var(--fn-hover);
+  outline: none;
+}
+
+.fn-dialog-backdrop {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: color-mix(in oklab, black 48%, transparent);
+  pointer-events: auto;
+}
+
+.fn-confirm-dialog {
+  width: min(100%, 300px);
+  padding: 16px;
+  border: 1px solid var(--fn-border-strong);
+  border-radius: 10px;
+  background: var(--fn-surface);
+  box-shadow: 0 12px 34px var(--fn-shadow-strong);
+  color: var(--fn-text);
+}
+
+.fn-confirm-dialog p {
+  margin: 8px 0 16px;
+  color: var(--fn-muted);
+  font-size: 12px;
+}
+
+.fn-confirm-dialog > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.fn-confirm-dialog button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.fn-danger-confirm {
+  border: 1px solid var(--fn-danger);
+  background: var(--fn-danger-fill);
+  color: var(--fn-text);
+}
+
+.fn-danger-confirm:hover {
+  background: var(--fn-danger-wash);
+}
+
 .fn-icon-button,
 .fn-small-action {
   display: grid;
@@ -193,6 +303,9 @@
 }
 
 .fn-count-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px 11px;
   border: 1px solid var(--fn-border-strong);
   border-radius: 999px;
@@ -500,6 +613,14 @@
   color: var(--fn-ok);
   cursor: pointer;
   font-size: 10px;
+}
+
+.fn-time-controls button,
+.fn-toast button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
 }
 
 .fn-time-nudges button {

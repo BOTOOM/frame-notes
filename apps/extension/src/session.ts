@@ -38,7 +38,7 @@ export class NoteSession {
   readonly project: string;
   readonly storageKey: `local:${string}`;
   private readonly commandPlayer: (command: PlayerCommand, value?: PlayerCommandValue) => void;
-  private readonly locale: Locale;
+  private locale: Locale;
   private readonly listeners = new Set<() => void>();
   private readonly documentListeners = new Set<() => void>();
   private readonly syncStatusListeners = new Set<() => void>();
@@ -186,6 +186,14 @@ export class NoteSession {
     const doc = { ...this.state.doc, fps: player.fps };
     this.publish({ ...player, doc, syncStatus: "syncing" });
     this.persistAndSchedule(doc);
+  }
+
+  setLocale(locale: Locale): void {
+    if (locale === this.locale) return;
+    this.locale = locale;
+    if (this.state.doc.notes.length === 0) return;
+    this.publish({ syncStatus: "syncing" });
+    this.persistAndSchedule(this.state.doc);
   }
 
   updateNotes(notes: NotesDoc["notes"]): void {

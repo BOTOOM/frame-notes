@@ -6,7 +6,7 @@ import type {
   SpeechBridgeEvent,
   SpeechBridgeRequest,
 } from "../src/dictation/protocol";
-import { currentLocale } from "../src/i18n";
+import { currentLocale, startLocalePreferenceWatch, subscribeLocale } from "../src/i18n";
 import { parseFps } from "../src/model";
 import { NotePanel, type PanelAction, type PanelActionRef } from "../src/panel";
 import { NoteSession, type PlayerCommandValue, type PlayerState } from "../src/session";
@@ -108,6 +108,8 @@ export default defineContentScript({
     let activeProject: string | null = null;
     let session: NoteSession | null = null;
     let activeUi: Awaited<ReturnType<typeof createShadowRootUi>> | null = null;
+    startLocalePreferenceWatch();
+    const unsubscribeLocale = subscribeLocale(() => session?.setLocale(currentLocale()));
     let activeHost: HTMLElement | null = null;
     let generation = 0;
     let disposed = false;
@@ -151,12 +153,29 @@ export default defineContentScript({
       activeUi = null;
       activeHost = null;
       actionRef.current = null;
+      actionRef.languageMenuOpen = false;
+      actionRef.deleteAllDialogOpen = false;
       session?.dispose();
       session = null;
       activeProject = null;
     };
 
     const handleShortcut = (event: KeyboardEvent) => {
+      if (actionRef.deleteAllDialogOpen) {
+        event.stopImmediatePropagation();
+        if (event.type === "keydown") {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            actionRef.current?.("escape");
+          } else if (event.key === "Tab") {
+            event.preventDefault();
+            actionRef.current?.(event.shiftKey ? "dialog-tab-previous" : "dialog-tab-next");
+          } else if (isShortcut(event)) {
+            event.preventDefault();
+          }
+        }
+        return;
+      }
       const path = event.composedPath();
       const fromPanel = activeHost !== null && path.includes(activeHost);
       if (fromPanel) {
@@ -166,6 +185,28 @@ export default defineContentScript({
         const isEditor =
           target instanceof HTMLTextAreaElement ||
           (target instanceof HTMLInputElement && target.type === "text");
+        if (event.key === "Escape") {
+          event.preventDefault();
+          actionRef.current?.("escape");
+          return;
+        }
+        if (actionRef.languageMenuOpen) {
+          const menuAction =
+            event.key === "ArrowDown"
+              ? "locale-next"
+              : event.key === "ArrowUp"
+                ? "locale-previous"
+                : event.key === "Home"
+                  ? "locale-first"
+                  : event.key === "End"
+                    ? "locale-last"
+                    : null;
+          if (menuAction) {
+            event.preventDefault();
+            actionRef.current?.(menuAction);
+            return;
+          }
+        }
         const action = isShortcut(event);
         if (action) {
           event.preventDefault();
@@ -173,9 +214,6 @@ export default defineContentScript({
         } else if (event.key === "Enter" && !event.shiftKey && isEditor) {
           event.preventDefault();
           actionRef.current?.("save");
-        } else if (event.key === "Escape") {
-          event.preventDefault();
-          actionRef.current?.("cancel");
         }
         return;
       }
@@ -306,6 +344,7 @@ export default defineContentScript({
 
     ctx.onInvalidated(() => {
       disposed = true;
+      unsubscribeLocale();
       removeStudio();
       postBridge({ kind: "command", command: "dispose" });
     });

@@ -1,3 +1,5 @@
+import type { Locale } from "./i18n";
+
 export interface Note {
   id: string;
   start: number;
@@ -15,7 +17,7 @@ export interface NotesDoc {
   notes: Note[];
 }
 
-export type Locale = "en" | "es";
+export type { Locale } from "./i18n";
 
 export function framesAt(time: number, fps: number): number {
   return Math.round(time * fps);
@@ -84,6 +86,26 @@ export function normalizeNote(note: Note): Note {
 
 export function sortNotes(notes: Note[]): Note[] {
   return notes.map(normalizeNote).sort((a, b) => a.start - b.start);
+}
+
+export type SortOrder = "asc" | "desc";
+
+export function orderNotes(notes: Note[], order: SortOrder): Note[] {
+  return notes
+    .map((note, index) => ({ note: normalizeNote(note), index }))
+    .sort((a, b) => {
+      const byStart = order === "asc" ? a.note.start - b.note.start : b.note.start - a.note.start;
+      return byStart || a.index - b.index;
+    })
+    .map(({ note }) => note);
+}
+
+export function restoreDeletedNotes(notes: Note[], deleted: Note[]): Note[] {
+  const restored = new Map(notes.map((note) => [note.id, note]));
+  for (const note of deleted) {
+    if (!restored.has(note.id)) restored.set(note.id, note);
+  }
+  return sortNotes([...restored.values()]);
 }
 
 function fpsLabel(fps: number): string {

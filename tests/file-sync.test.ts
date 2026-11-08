@@ -193,6 +193,20 @@ describe("project file synchronization", () => {
     expect(mergeNotes(local, remote, new Set(["deleted"]))?.notes).toEqual([]);
   });
 
+  it("keeps all locally deleted notes out of a conflict merge", () => {
+    const deleted = ["first", "second"].map((id, index) => ({
+      id,
+      start: index + 1,
+      end: null,
+      text: id,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    }));
+    const local = { ...emptyNotesDoc("demo"), notes: [] };
+    const remote = { ...emptyNotesDoc("demo"), notes: deleted };
+    expect(mergeNotes(local, remote, new Set(deleted.map((note) => note.id)))?.notes).toEqual([]);
+  });
+
   it("repairs missing or stale Markdown for the selected JSON document", () => {
     const doc = emptyNotesDoc("demo");
     expect(needsMarkdownSync(null, doc, "en")).toBe(true);

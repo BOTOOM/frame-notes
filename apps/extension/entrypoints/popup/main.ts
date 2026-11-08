@@ -1,17 +1,26 @@
+import { Copy, createElement } from "lucide";
 import { createBrandGlyphSvg } from "../../src/brand-glyph";
 import {
   dictationEngineStorageName,
   isDictationEngineChoice,
   saveDictationEngineChoice,
 } from "../../src/dictation/preferences";
-import { currentLocale, t } from "../../src/i18n";
+import {
+  currentLocale,
+  getLocalePreferenceSnapshot,
+  isLocalePreference,
+  LOCALE_PREFERENCES,
+  setLocalePreference,
+  startLocalePreferenceWatch,
+  subscribeLocale,
+  t,
+} from "../../src/i18n";
 import "./style.css";
 
 const namespace = "frame-notes:v1";
 const root = document.querySelector<HTMLDivElement>("#root");
-const locale = currentLocale();
-document.documentElement.lang = locale;
-document.title = t("appName", locale);
+let renderGeneration = 0;
+startLocalePreferenceWatch();
 
 interface TabStatus {
   detected: boolean;
@@ -30,6 +39,10 @@ function button(text: string, disabled: boolean, handler: () => void): HTMLButto
 
 async function openPopup(): Promise<void> {
   if (!root) return;
+  const generation = ++renderGeneration;
+  const locale = currentLocale();
+  document.documentElement.lang = locale;
+  document.title = t("appName", locale);
   root.replaceChildren();
   const brand = document.createElement("div");
   brand.className = "brand";
@@ -42,6 +55,7 @@ async function openPopup(): Promise<void> {
   root.append(brand);
 
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  if (generation !== renderGeneration) return;
   let status: TabStatus = { detected: false, project: null, noteCount: 0 };
   if (tab?.id !== undefined) {
     try {
@@ -50,6 +64,7 @@ async function openPopup(): Promise<void> {
       status = { detected: false, project: null, noteCount: 0 };
     }
   }
+  if (generation !== renderGeneration) return;
 
   const summary = document.createElement("div");
   summary.className = status.detected ? "detected" : "unsupported";
@@ -67,6 +82,15 @@ async function openPopup(): Promise<void> {
       }
     });
     copyAll.className = "copy-all";
+    copyAll.prepend(
+      createElement(Copy, {
+        width: 14,
+        height: 14,
+        strokeWidth: 2,
+        "aria-hidden": "true",
+        focusable: "false",
+      }),
+    );
     root.append(copyAll);
   }
 
@@ -90,6 +114,7 @@ async function openPopup(): Promise<void> {
     .get(dictationEngineStorageName)
     .then((values) => values[dictationEngineStorageName])
     .catch(() => null);
+  if (generation !== renderGeneration) return;
   engine.value = isDictationEngineChoice(savedChoice) ? savedChoice : "auto";
   engine.addEventListener("change", () => {
     if (isDictationEngineChoice(engine.value)) {
@@ -99,10 +124,34 @@ async function openPopup(): Promise<void> {
   engineLabel.append(engineTitle, engine);
   root.append(engineLabel);
 
+  const languageLabel = document.createElement("label");
+  languageLabel.className = "dictation-choice";
+  const languageTitle = document.createElement("span");
+  languageTitle.textContent = t("language", locale);
+  const language = document.createElement("select");
+  for (const choice of LOCALE_PREFERENCES) {
+    const option = document.createElement("option");
+    option.value = choice;
+    option.textContent =
+      choice === "auto"
+        ? t("languageAuto", locale)
+        : choice === "es"
+          ? t("languageSpanish", locale)
+          : t("languageEnglish", locale);
+    language.append(option);
+  }
+  language.value = getLocalePreferenceSnapshot();
+  language.addEventListener("change", () => {
+    if (isLocalePreference(language.value)) setLocalePreference(language.value);
+  });
+  languageLabel.append(languageTitle, language);
+  root.append(languageLabel);
+
   const hints = document.createElement("div");
   hints.className = "hints";
   hints.textContent = t("shortcuts", locale);
   root.append(hints);
 }
 
+subscribeLocale(() => void openPopup());
 void openPopup();

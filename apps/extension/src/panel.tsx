@@ -1,5 +1,27 @@
+import {
+  ArrowDownNarrowWide,
+  ArrowDownWideNarrow,
+  ArrowRight,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Copy,
+  Crosshair,
+  Languages,
+  LocateFixed,
+  Maximize2,
+  Minus,
+  Pencil,
+  Plus,
+  Repeat,
+  Square,
+  Trash2,
+  Undo2,
+  X,
+} from "lucide-react";
 import type { PointerEvent, RefObject } from "react";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { storage } from "wxt/utils/storage";
 import { DetailStrip } from "./detail-strip";
 import { DictationControls } from "./dictation/controls";
@@ -7,19 +29,31 @@ import { insertAtCaret } from "./dictation/helpers";
 import { useDictationEngineChoice } from "./dictation/preferences";
 import type { SpeechBridge } from "./dictation/protocol";
 import { useDictation } from "./dictation/use-dictation";
-import { currentLocale, t } from "./i18n";
+import {
+  getLocalePreferenceSnapshot,
+  LOCALE_PREFERENCES,
+  type Locale,
+  type LocalePreference,
+  setLocalePreference,
+  subscribeLocale,
+  t,
+} from "./i18n";
 import {
   copyText,
   formatRangeDuration,
   formatTime,
   type Note,
   normalizeNote,
+  orderNotes,
   parseTime,
+  restoreDeletedNotes,
+  type SortOrder,
   sortNotes,
 } from "./model";
 import type { NoteSession } from "./session";
 import { nudgeFrames } from "./timeline-math";
 import { TimelineOverlay } from "./timeline-overlay";
+import { useLocale } from "./use-locale";
 
 export type PanelAction =
   | "new"
@@ -29,9 +63,18 @@ export type PanelAction =
   | "minimize"
   | "save"
   | "cancel"
-  | "dictate";
+  | "dictate"
+  | "escape"
+  | "locale-next"
+  | "locale-previous"
+  | "locale-first"
+  | "locale-last"
+  | "dialog-tab-next"
+  | "dialog-tab-previous";
 export interface PanelActionRef {
   current: ((action: PanelAction) => void) | null;
+  languageMenuOpen?: boolean;
+  deleteAllDialogOpen?: boolean;
 }
 
 interface NotePanelProps {
@@ -55,6 +98,7 @@ interface PanelPreferences {
   left: number;
   top: number;
   minimized: boolean;
+  sortOrder: SortOrder;
 }
 
 interface MarkerRect {
@@ -128,7 +172,12 @@ export function NotePanel({
     session.getLoopingRangeSnapshot,
     session.getLoopingRangeSnapshot,
   );
-  const locale = currentLocale();
+  const locale = useLocale();
+  const localePreference = useSyncExternalStore(
+    subscribeLocale,
+    getLocalePreferenceSnapshot,
+    getLocalePreferenceSnapshot,
+  );
   const engineChoice = useDictationEngineChoice();
   const [fields, setFields] = useState<EditFields | null>(null);
   const [invalidTime, setInvalidTime] = useState(false);
@@ -137,10 +186,19 @@ export function NotePanel({
     top: 64,
   }));
   const [minimized, setMinimized] = useState(false);
-  const [deleted, setDeleted] = useState<Note | null>(null);
+  const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
+  const [localeMenuOpen, setLocaleMenuOpen] = useState(false);
+  const [deleted, setDeleted] = useState<Note[] | null>(null);
+  const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
+  const localeMenuRef = useRef<HTMLDivElement | null>(null);
+  const localeToggleRef = useRef<HTMLButtonElement | null>(null);
+  const deleteAllButtonRef = useRef<HTMLButtonElement | null>(null);
+  const addNoteButtonRef = useRef<HTMLButtonElement | null>(null);
+  const deleteAllDialogRef = useRef<HTMLElement | null>(null);
+  const deleteAllCancelRef = useRef<HTMLButtonElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fieldsRef = useRef<EditFields | null>(fields);
   const caretRef = useRef<number | null>(null);
@@ -149,6 +207,29 @@ export function NotePanel({
   const lastEditedId = useRef<string | null>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   fieldsRef.current = fields;
+  actionRef.languageMenuOpen = localeMenuOpen;
+  actionRef.deleteAllDialogOpen = deleteAllDialogOpen;
+  const closeDeleteAllDialog = useCallback((restoreFocus = true) => {
+    setDeleteAllDialogOpen(false);
+    if (restoreFocus) deleteAllButtonRef.current?.focus();
+  }, []);
+  const focusDeleteAllAction = useCallback((action: "dialog-tab-next" | "dialog-tab-previous") => {
+    const items = Array.from(
+      deleteAllDialogRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ??
+        [],
+    );
+    if (!items.length) return;
+    const root = panelRef.current?.getRootNode();
+    const activeElement = root instanceof ShadowRoot ? root.activeElement : document.activeElement;
+    const current = items.indexOf(activeElement as HTMLButtonElement);
+    const nextIndex =
+      current < 0
+        ? action === "dialog-tab-next"
+          ? 0
+          : items.length - 1
+        : (current + (action === "dialog-tab-next" ? 1 : -1) + items.length) % items.length;
+    items[nextIndex]?.focus();
+  }, []);
   const dictation = useDictation({
     locale,
     engineChoice,
@@ -191,12 +272,50 @@ export function NotePanel({
           ),
         );
         setMinimized(saved.minimized);
+        setSortOrder(saved.sortOrder === "desc" ? "desc" : "asc");
       })
       .catch(() => undefined);
     return () => {
       active = false;
     };
   }, [storageKey]);
+
+  useEffect(() => {
+    if (!localeMenuOpen) return;
+    const closeOnOutsidePointer = (event: globalThis.PointerEvent) => {
+      const path = event.composedPath();
+      if (
+        path.includes(localeMenuRef.current as EventTarget) ||
+        path.includes(localeToggleRef.current as EventTarget)
+      )
+        return;
+      setLocaleMenuOpen(false);
+    };
+    window.addEventListener("pointerdown", closeOnOutsidePointer, true);
+    return () => window.removeEventListener("pointerdown", closeOnOutsidePointer, true);
+  }, [localeMenuOpen]);
+
+  useEffect(() => {
+    if (!localeMenuOpen) return;
+    const selected =
+      localeMenuRef.current?.querySelector<HTMLButtonElement>('[aria-checked="true"]');
+    selected?.focus();
+  }, [localeMenuOpen]);
+
+  useEffect(() => {
+    if (deleteAllDialogOpen) deleteAllCancelRef.current?.focus();
+  }, [deleteAllDialogOpen]);
+
+  useEffect(() => {
+    if (!deleteAllDialogOpen) return;
+    const closeOnOutsidePointer = (event: globalThis.PointerEvent) => {
+      if (!event.composedPath().includes(deleteAllDialogRef.current as EventTarget)) {
+        closeDeleteAllDialog(false);
+      }
+    };
+    window.addEventListener("pointerdown", closeOnOutsidePointer, true);
+    return () => window.removeEventListener("pointerdown", closeOnOutsidePointer, true);
+  }, [closeDeleteAllDialog, deleteAllDialogOpen]);
 
   useEffect(() => {
     const resize = () => {
@@ -229,10 +348,15 @@ export function NotePanel({
     return () => window.clearTimeout(timer);
   }, [toast, deleted]);
 
-  const persistPreferences = (nextPosition = position, nextMinimized = minimized) => {
+  const persistPreferences = (
+    nextPosition = position,
+    nextMinimized = minimized,
+    nextSortOrder = sortOrder,
+  ) => {
     const saved: PanelPreferences = {
       ...nextPosition,
       minimized: nextMinimized,
+      sortOrder: nextSortOrder,
     };
     void storage.setItem(storageKey, saved).catch(() => undefined);
   };
@@ -378,6 +502,29 @@ export function NotePanel({
     persistPreferences(position, next);
   };
 
+  const toggleSortOrder = () => {
+    const next = sortOrder === "asc" ? "desc" : "asc";
+    setSortOrder(next);
+    persistPreferences(position, minimized, next);
+  };
+
+  const focusLocaleOption = (action: PanelAction) => {
+    const items = Array.from(
+      localeMenuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]') ?? [],
+    );
+    if (!items.length) return;
+    const root = panelRef.current?.getRootNode();
+    const activeElement = root instanceof ShadowRoot ? root.activeElement : document.activeElement;
+    const current = items.indexOf(activeElement as HTMLButtonElement);
+    const nextIndex =
+      action === "locale-first"
+        ? 0
+        : action === "locale-last"
+          ? items.length - 1
+          : (current + (action === "locale-next" ? 1 : -1) + items.length) % items.length;
+    items[nextIndex]?.focus();
+  };
+
   const copyAll = async () => {
     try {
       await copyToClipboard(copyText(doc, locale));
@@ -399,6 +546,19 @@ export function NotePanel({
       else if (action === "dictate") {
         if (!fields) beginDraft(false);
         dictation.start();
+      } else if (action === "escape") {
+        if (deleteAllDialogOpen) {
+          closeDeleteAllDialog();
+        } else if (localeMenuOpen) {
+          setLocaleMenuOpen(false);
+          localeToggleRef.current?.focus();
+        } else {
+          cancelFields();
+        }
+      } else if (action.startsWith("locale-") && localeMenuOpen) {
+        focusLocaleOption(action);
+      } else if (action === "dialog-tab-next" || action === "dialog-tab-previous") {
+        focusDeleteAllAction(action);
       }
     };
     actionRef.current = handler;
@@ -411,14 +571,30 @@ export function NotePanel({
   const handleEnd = () => setEndToNow();
   const removeNote = (note: Note) => {
     if (loopingRange?.id === note.id) session.command("stopLoop");
-    setDeleted(note);
+    setDeleted([note]);
     setToast("");
     session.updateNotes(doc.notes.filter((item) => item.id !== note.id));
   };
 
+  const deleteAllNotes = () => {
+    if (!doc.notes.length || fields) {
+      closeDeleteAllDialog();
+      return;
+    }
+    const removed = [...doc.notes];
+    if (loopingRange && removed.some((note) => note.id === loopingRange.id)) {
+      session.command("stopLoop");
+    }
+    setDeleted(removed);
+    setToast("");
+    closeDeleteAllDialog(false);
+    session.updateNotes([]);
+    requestAnimationFrame(() => addNoteButtonRef.current?.focus());
+  };
+
   const undoDelete = () => {
     if (!deleted) return;
-    session.updateNotes(sortNotes([...doc.notes, deleted]));
+    session.updateNotes(restoreDeletedNotes(doc.notes, deleted));
     setDeleted(null);
     setToast("");
   };
@@ -525,10 +701,57 @@ export function NotePanel({
               title={t("expand", locale)}
               aria-label={t("expand", locale)}
             >
+              <Maximize2 size={16} strokeWidth={2} aria-hidden="true" focusable="false" />
               {doc.notes.length} {t("notes", locale)}
             </button>
           ) : (
             <div className="fn-header-actions">
+              <div className="fn-language-control">
+                <button
+                  ref={localeToggleRef}
+                  type="button"
+                  className="fn-icon-button"
+                  aria-label={t("language", locale)}
+                  title={t("language", locale)}
+                  aria-haspopup="menu"
+                  aria-expanded={localeMenuOpen}
+                  onClick={() => setLocaleMenuOpen((open) => !open)}
+                >
+                  <Languages size={16} strokeWidth={2} aria-hidden="true" focusable="false" />
+                </button>
+                {localeMenuOpen && (
+                  <div className="fn-language-menu" role="menu" ref={localeMenuRef}>
+                    {LOCALE_PREFERENCES.map((choice: LocalePreference) => {
+                      const label =
+                        choice === "auto"
+                          ? t("languageAuto", locale)
+                          : choice === "es"
+                            ? t("languageSpanish", locale)
+                            : t("languageEnglish", locale);
+                      const selected = choice === localePreference;
+                      return (
+                        <button
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={selected}
+                          tabIndex={selected ? 0 : -1}
+                          key={choice}
+                          onClick={() => {
+                            setLocalePreference(choice);
+                            setLocaleMenuOpen(false);
+                            localeToggleRef.current?.focus();
+                          }}
+                        >
+                          <span>{label}</span>
+                          {selected && (
+                            <Check size={14} strokeWidth={2} aria-hidden="true" focusable="false" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
               <button
                 type="button"
                 className="fn-icon-button"
@@ -536,7 +759,7 @@ export function NotePanel({
                 title={t("minimize", locale)}
                 aria-label={t("minimize", locale)}
               >
-                −
+                <Minus size={16} strokeWidth={2} aria-hidden="true" focusable="false" />
               </button>
             </div>
           )}
@@ -557,9 +780,54 @@ export function NotePanel({
                         : t("synced", locale)}
                 </span>
               </div>
-              <button type="button" className="fn-add" onClick={() => beginDraft()}>
-                {t("addNote", locale)}
-              </button>
+              <div className="fn-toolbar-actions">
+                <button
+                  type="button"
+                  ref={deleteAllButtonRef}
+                  className="fn-icon-button fn-delete-all"
+                  onClick={() => {
+                    setLocaleMenuOpen(false);
+                    setDeleteAllDialogOpen(true);
+                  }}
+                  aria-label={t("deleteAll", locale)}
+                  title={t("deleteAll", locale)}
+                  disabled={doc.notes.length === 0 || fields !== null}
+                >
+                  <Trash2 size={14} strokeWidth={2} aria-hidden="true" focusable="false" />
+                </button>
+                <button
+                  type="button"
+                  className="fn-icon-button"
+                  onClick={toggleSortOrder}
+                  aria-label={t(sortOrder === "asc" ? "oldestFirst" : "newestFirst", locale)}
+                  title={t(sortOrder === "asc" ? "oldestFirst" : "newestFirst", locale)}
+                >
+                  {sortOrder === "asc" ? (
+                    <ArrowDownNarrowWide
+                      size={14}
+                      strokeWidth={2}
+                      aria-hidden="true"
+                      focusable="false"
+                    />
+                  ) : (
+                    <ArrowDownWideNarrow
+                      size={14}
+                      strokeWidth={2}
+                      aria-hidden="true"
+                      focusable="false"
+                    />
+                  )}
+                </button>
+                <button
+                  ref={addNoteButtonRef}
+                  type="button"
+                  className="fn-add"
+                  onClick={() => beginDraft()}
+                >
+                  <Plus size={14} strokeWidth={2} aria-hidden="true" focusable="false" />
+                  {t("addNote", locale)}
+                </button>
+              </div>
             </div>
             <DetailStrip
               session={session}
@@ -592,13 +860,13 @@ export function NotePanel({
               {!doc.notes.length && !fields && (
                 <div className="fn-empty">
                   <span className="fn-empty-icon" aria-hidden="true">
-                    ◷
+                    <Clock size={14} strokeWidth={2} aria-hidden="true" focusable="false" />
                   </span>
                   <strong>{t("emptyTitle", locale)}</strong>
                   <p>{t("emptyBody", locale)}</p>
                 </div>
               )}
-              {sortNotes(doc.notes).map((note) =>
+              {orderNotes(doc.notes, sortOrder).map((note) =>
                 fields?.id === note.id ? (
                   <NoteEditor
                     key={note.id}
@@ -633,12 +901,23 @@ export function NotePanel({
                         onClick={() => session.command("seek", note.start)}
                         title={t("start", locale)}
                       >
+                        <LocateFixed
+                          size={14}
+                          strokeWidth={2}
+                          aria-hidden="true"
+                          focusable="false"
+                        />
                         {formatTime(note.start)}
                       </button>
                       {note.end !== null && (
                         <>
                           <span className="fn-range-arrow" aria-hidden="true">
-                            →
+                            <ArrowRight
+                              size={14}
+                              strokeWidth={2}
+                              aria-hidden="true"
+                              focusable="false"
+                            />
                           </span>
                           <button
                             type="button"
@@ -673,7 +952,21 @@ export function NotePanel({
                               locale,
                             )}
                           >
-                            {loopingRange?.id === note.id ? "■" : "↻"}
+                            {loopingRange?.id === note.id ? (
+                              <Square
+                                size={14}
+                                strokeWidth={2}
+                                aria-hidden="true"
+                                focusable="false"
+                              />
+                            ) : (
+                              <Repeat
+                                size={14}
+                                strokeWidth={2}
+                                aria-hidden="true"
+                                focusable="false"
+                              />
+                            )}
                           </button>
                         )}
                         <button
@@ -681,16 +974,18 @@ export function NotePanel({
                           className="fn-small-action"
                           onClick={() => beginEdit(note)}
                           aria-label={t("edit", locale)}
+                          title={t("edit", locale)}
                         >
-                          ✎
+                          <Pencil size={14} strokeWidth={2} aria-hidden="true" focusable="false" />
                         </button>
                         <button
                           type="button"
                           className="fn-small-action fn-danger"
                           onClick={() => removeNote(note)}
                           aria-label={t("delete", locale)}
+                          title={t("delete", locale)}
                         >
-                          ×
+                          <Trash2 size={14} strokeWidth={2} aria-hidden="true" focusable="false" />
                         </button>
                       </div>
                     </div>
@@ -710,47 +1005,68 @@ export function NotePanel({
             </main>
             <footer className="fn-footer">
               <button type="button" className="fn-copy" onClick={() => void copyAll()}>
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 16 16"
-                  aria-hidden="true"
-                  focusable="false"
-                >
-                  <rect
-                    x="5"
-                    y="1.5"
-                    width="9"
-                    height="11.5"
-                    rx="1.5"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.25"
-                  />
-                  <rect
-                    x="2"
-                    y="4.5"
-                    width="9"
-                    height="10"
-                    rx="1.5"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.25"
-                  />
-                </svg>{" "}
+                <Copy size={14} strokeWidth={2} aria-hidden="true" focusable="false" />
                 {t("copyAll", locale)}
               </button>
               <p>{t("shortcuts", locale)}</p>
             </footer>
           </>
         )}
+        {deleteAllDialogOpen && (
+          <div
+            className="fn-dialog-backdrop"
+            onPointerDown={(event) => {
+              if (event.target === event.currentTarget) closeDeleteAllDialog();
+            }}
+          >
+            <section
+              className="fn-confirm-dialog"
+              ref={deleteAllDialogRef}
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="fn-delete-all-title"
+              aria-describedby="fn-delete-all-description"
+            >
+              <strong id="fn-delete-all-title">{t("deleteAll", locale)}</strong>
+              <p id="fn-delete-all-description">
+                {t("deleteAllPrompt", locale).replace("{count}", String(doc.notes.length))}
+              </p>
+              <div>
+                <button
+                  type="button"
+                  className="fn-secondary"
+                  ref={deleteAllCancelRef}
+                  onClick={() => closeDeleteAllDialog()}
+                >
+                  {t("cancel", locale)}
+                </button>
+                <button type="button" className="fn-danger-confirm" onClick={deleteAllNotes}>
+                  {t("deleteAll", locale)}
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
         {(deleted || toast) && (
           <div className="fn-toast" role="status">
-            <span>{deleted ? t("deleted", locale) : toast}</span>
+            <span>
+              {deleted
+                ? deleted.length === 1
+                  ? t("deleted", locale)
+                  : t("deletedMany", locale).replace("{count}", String(deleted.length))
+                : toast}
+            </span>
+            {toast === t("copied", locale) && (
+              <Check size={14} strokeWidth={2} aria-hidden="true" focusable="false" />
+            )}
             {deleted && (
-              <button type="button" onClick={undoDelete}>
-                {t("undo", locale)}
-              </button>
+              <>
+                <span aria-hidden="true">·</span>
+                <button type="button" onClick={undoDelete}>
+                  <Undo2 size={14} strokeWidth={2} aria-hidden="true" focusable="false" />
+                  {t("undo", locale)}
+                </button>
+              </>
             )}
           </div>
         )}
@@ -772,7 +1088,7 @@ interface NoteEditorProps {
   clearValidation: () => void;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   fps: number;
-  locale: ReturnType<typeof currentLocale>;
+  locale: Locale;
   dictation: ReturnType<typeof useDictation>;
   updateText: (text: string, caret: number) => void;
   updateSelection: (start: number, end: number) => void;
@@ -833,7 +1149,8 @@ function NoteEditor({
                 aria-label={t("nudgeBack", locale)}
                 onClick={(event) => nudge("start", -1, event.shiftKey)}
               >
-                −1f
+                <ChevronLeft size={14} strokeWidth={2} aria-hidden="true" focusable="false" />
+                1f
               </button>
               <button
                 type="button"
@@ -841,10 +1158,12 @@ function NoteEditor({
                 aria-label={t("nudgeForward", locale)}
                 onClick={(event) => nudge("start", 1, event.shiftKey)}
               >
-                +1f
+                <ChevronRight size={14} strokeWidth={2} aria-hidden="true" focusable="false" />
+                1f
               </button>
             </div>
             <button type="button" onClick={startNow} title={t("start", locale)}>
+              <Crosshair size={14} strokeWidth={2} aria-hidden="true" focusable="false" />
               {t("now", locale)}
             </button>
           </div>
@@ -869,7 +1188,8 @@ function NoteEditor({
                 aria-label={t("nudgeBack", locale)}
                 onClick={(event) => nudge("end", -1, event.shiftKey)}
               >
-                −1f
+                <ChevronLeft size={14} strokeWidth={2} aria-hidden="true" focusable="false" />
+                1f
               </button>
               <button
                 type="button"
@@ -877,15 +1197,22 @@ function NoteEditor({
                 aria-label={t("nudgeForward", locale)}
                 onClick={(event) => nudge("end", 1, event.shiftKey)}
               >
-                +1f
+                <ChevronRight size={14} strokeWidth={2} aria-hidden="true" focusable="false" />
+                1f
               </button>
             </div>
             {fields.end ? (
-              <button type="button" onClick={removeEnd} title={t("removeEnd", locale)}>
-                ×
+              <button
+                type="button"
+                onClick={removeEnd}
+                title={t("removeEnd", locale)}
+                aria-label={t("removeEnd", locale)}
+              >
+                <X size={14} strokeWidth={2} aria-hidden="true" focusable="false" />
               </button>
             ) : (
               <button type="button" onClick={endNow} title={t("end", locale)}>
+                <Crosshair size={14} strokeWidth={2} aria-hidden="true" focusable="false" />
                 {t("now", locale)}
               </button>
             )}
@@ -907,9 +1234,11 @@ function NoteEditor({
       {invalidTime && <p className="fn-validation">{t("invalidTime", locale)}</p>}
       <div className="fn-editor-actions">
         <button type="button" className="fn-secondary" onClick={cancel}>
+          <X size={14} strokeWidth={2} aria-hidden="true" focusable="false" />
           {t("cancel", locale)}
         </button>
         <button type="button" className="fn-primary" onClick={save}>
+          <Check size={14} strokeWidth={2} aria-hidden="true" focusable="false" />
           {t("save", locale)}
         </button>
       </div>
@@ -924,6 +1253,7 @@ interface MarkersProps {
 }
 
 function Markers({ notes, session, seek }: MarkersProps) {
+  const locale = useLocale();
   const duration = useSyncExternalStore(
     session.subscribeDuration,
     session.getDurationSnapshot,
@@ -1002,7 +1332,7 @@ function Markers({ notes, session, seek }: MarkersProps) {
   const flagWidth = Math.min(10, trackWidth);
 
   return (
-    <section className="fn-markers" aria-label={t("markersLabel", currentLocale())}>
+    <section className="fn-markers" aria-label={t("markersLabel", locale)}>
       {sortNotes(notes).map((note) => {
         const left = xFor(note.start);
         const flagLeft = Math.min(
