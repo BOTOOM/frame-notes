@@ -63,6 +63,7 @@ export const en = {
   now: "Now",
   oldestFirst: "Start to end",
   resizePanel: "Drag to resize · double-click to reset",
+  resizePanelHint: "Arrow keys resize · Enter resets",
   removeEnd: "Remove end",
   save: "Save",
   saving: "Saving…",

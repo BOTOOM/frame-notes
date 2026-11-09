@@ -997,6 +997,11 @@
   background: var(--fn-accent);
 }
 
+.fn-resize-handle:focus-visible {
+  outline: 2px solid var(--fn-accent);
+  outline-offset: -2px;
+}
+
 @media (max-height: 560px) {
   .fn-footer p {
     display: none;

@@ -1,6 +1,5 @@
 import {
   chooseNotesDoc,
-  emptyNotesDoc,
   type Locale,
   type NotesDoc,
   notesJson,
@@ -211,9 +210,10 @@ export async function syncProjectMarkdown(
 ): Promise<void> {
   for (let retry = 0; ; retry += 1) {
     const remote = await readProjectNotes(project, fetcher);
-    if (remote.markdown === null && (!remote.doc || remote.doc.notes.length === 0)) return;
+    if (!remote.doc) return;
+    if (remote.markdown === null && remote.doc.notes.length === 0) return;
 
-    const markdown = notesMarkdown(remote.doc ?? emptyNotesDoc(project), locale);
+    const markdown = notesMarkdown(remote.doc, locale);
     if (markdown === remote.markdown) return;
 
     try {

@@ -67,6 +67,7 @@ export const es: Messages = {
   now: "Ahora",
   oldestFirst: "Del inicio al final",
   resizePanel: "Arrastra para cambiar la altura · doble clic para restablecer",
+  resizePanelHint: "Flechas: cambiar altura · Enter: restablecer",
   removeEnd: "Quitar fin",
   save: "Guardar",
   saving: "Guardando…",
