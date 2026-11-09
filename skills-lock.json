@@ -8,6 +8,20 @@
       "computedHash": "ed0d322ab74db785875367cc3a7d72bec466793bba30551ce3908b3a5b2373aa",
       "installMode": "copy"
     },
+    "optimize-for-ai": {
+      "source": "calm-north/seojuice-skills",
+      "sourceType": "github",
+      "skillPath": "skills/optimize-for-ai/SKILL.md",
+      "computedHash": "07c29b3de08b25d6261b1bfc18c31b8995cfe2e2141d6f2df365cfbbd002093c",
+      "installMode": "copy"
+    },
+    "target-serp": {
+      "source": "calm-north/seojuice-skills",
+      "sourceType": "github",
+      "skillPath": "skills/target-serp/SKILL.md",
+      "computedHash": "3d63fcc3329d7a596c4bbff201fdca83cdbb8c09df08af9fac0217c14926720c",
+      "installMode": "copy"
+    },
     "wxt-browser-extensions": {
       "source": "pproenca/dot-skills",
       "sourceType": "github",

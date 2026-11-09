@@ -472,6 +472,19 @@ export const landingContent: Record<Locale, LandingContent> = {
   },
 };
 
+export const seoMetadata: Record<Locale, { title: string; description: string }> = {
+  es: {
+    title: "Frame Notes — notas de revisión al frame para HyperFrames Studio",
+    description:
+      "Extensión gratuita y de código abierto para Chrome y Firefox: marca rangos de tiempo al frame en HyperFrames Studio, escribe o dicta notas y compártelas con tu agente de IA en review-notes.md y .json. Todo queda en tu equipo.",
+  },
+  en: {
+    title: "Frame Notes — frame-accurate review notes for HyperFrames Studio",
+    description:
+      "Free, open-source Chrome and Firefox extension: mark frame-accurate time ranges in HyperFrames Studio, type or dictate notes, and hand them to your AI agent as review-notes.md and .json. Everything stays on your machine.",
+  },
+};
+
 export const copyExample: Record<Locale, string> = {
   es: `Notas de revisión — long-demo (3 notas, 30 fps)
 1) 12:00.000 → 12:00.200 (f21600–f21606, 0.200 s): Revisar el ritmo del título.

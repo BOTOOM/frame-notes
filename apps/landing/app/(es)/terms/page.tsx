@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal-page";
 import { SiteLayout } from "@/components/site-layout";
+import { createPageMetadata } from "@/src/page-metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createPageMetadata({
+  locale: "es",
+  path: "/terms",
+  esPath: "/terms",
+  enPath: "/en/terms",
   title: "Términos y condiciones",
   description: "Términos de uso de Frame Notes.",
-  alternates: {
-    canonical: "/terms",
-    languages: { es: "/terms", en: "/en/terms" },
-  },
-};
+});
 
 export default function SpanishTermsPage() {
   return (
