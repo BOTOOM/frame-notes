@@ -45,15 +45,18 @@ module.exports = {
       {
         assets: [
           {
-            path: `.output/release/frame-notes-\${nextRelease.version}-chrome.zip`,
+            path: ".output/release/*-chrome.zip",
+            name: `frame-notes-\${nextRelease.version}-chrome.zip`,
             label: `Frame Notes \${nextRelease.version} — Chrome / Edge / Opera (.zip)`,
           },
           {
-            path: `.output/release/frame-notes-\${nextRelease.version}-firefox.xpi`,
+            path: ".output/release/*-firefox.xpi",
+            name: `frame-notes-\${nextRelease.version}-firefox.xpi`,
             label: `Frame Notes \${nextRelease.version} — Firefox (.xpi, unsigned)`,
           },
           {
-            path: `.output/release/frame-notes-\${nextRelease.version}-sources.zip`,
+            path: ".output/release/*-sources.zip",
+            name: `frame-notes-\${nextRelease.version}-sources.zip`,
             label: `Frame Notes \${nextRelease.version} — Source code for AMO review`,
           },
         ],
