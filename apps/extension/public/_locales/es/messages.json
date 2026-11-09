@@ -1,0 +1,23 @@
+{
+  "extensionName": {
+    "message": "Frame Notes"
+  },
+  "extensionDescription": {
+    "message": "Notas de revisión por rango de tiempo para HyperFrames Studio"
+  },
+  "commandNewNote": {
+    "message": "Crear una nota de revisión"
+  },
+  "commandSetStart": {
+    "message": "Definir el inicio de la nota en el cabezal"
+  },
+  "commandSetEnd": {
+    "message": "Definir el fin de la nota en el cabezal"
+  },
+  "commandCopy": {
+    "message": "Copiar todas las notas de revisión"
+  },
+  "commandToggle": {
+    "message": "Minimizar o expandir Frame Notes"
+  }
+}

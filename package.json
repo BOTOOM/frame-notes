@@ -1,0 +1,21 @@
+{
+  "name": "frame-notes",
+  "private": true,
+  "packageManager": "pnpm@12.16.1",
+  "scripts": {
+    "lint": "biome check apps tests",
+    "typecheck": "pnpm --filter @frame-notes/extension exec wxt prepare && pnpm --filter @frame-notes/extension exec tsc --noEmit && pnpm exec tsc --noEmit -p tsconfig.tests.json",
+    "test": "vitest run",
+    "build": "pnpm --filter @frame-notes/extension build",
+    "build:firefox": "pnpm --filter @frame-notes/extension build:firefox",
+    "zip": "pnpm --filter @frame-notes/extension zip",
+    "zip:firefox": "pnpm --filter @frame-notes/extension zip:firefox",
+    "dev": "pnpm --filter @frame-notes/extension dev"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.4",
+    "@types/node": "^24.3.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}
