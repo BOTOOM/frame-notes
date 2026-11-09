@@ -485,7 +485,32 @@ export function NotePanel({
         >
           <div className="fn-brand">
             <span className="fn-brand-mark" aria-hidden="true">
-              F
+              <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+                <title>Frame Notes logo</title>
+                <path
+                  d="M6 48h52"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M12 40v16M24 44v8M36 44v8M48 44v8"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  opacity=".5"
+                />
+                <path d="M30 48V8h22l-6 8 6 8H30" fill="var(--fn-accent)" />
+                <path
+                  d="M30 48V8"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                />
+              </svg>
             </span>
             <div>
               <strong>{t("appName", locale)}</strong>
@@ -625,10 +650,6 @@ export function NotePanel({
                           </button>
                         </>
                       )}
-                      <span className="fn-frame-chip">
-                        f{Math.round(note.start * doc.fps)}
-                        {note.end === null ? "" : `–f${Math.round(note.end * doc.fps)}`}
-                      </span>
                       <div className="fn-note-actions">
                         {note.end !== null && note.end > note.start && (
                           <button
@@ -673,11 +694,11 @@ export function NotePanel({
                         </button>
                       </div>
                     </div>
-                    {note.end !== null && (
-                      <span className="fn-range-duration">
-                        {formatRangeDuration(note, doc.fps)}
-                      </span>
-                    )}
+                    <span className="fn-note-meta">
+                      {note.end === null
+                        ? `f${Math.round(note.start * doc.fps)}`
+                        : `${formatRangeDuration(note, doc.fps)} · f${Math.round(note.start * doc.fps)}–f${Math.round(note.end * doc.fps)}`}
+                    </span>
                     <button type="button" className="fn-note-text" onClick={() => beginEdit(note)}>
                       {note.text || (
                         <span className="fn-muted">{t("notePlaceholder", locale)}</span>
@@ -689,7 +710,35 @@ export function NotePanel({
             </main>
             <footer className="fn-footer">
               <button type="button" className="fn-copy" onClick={() => void copyAll()}>
-                <span aria-hidden="true">▣</span> {t("copyAll", locale)}
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 16 16"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <rect
+                    x="5"
+                    y="1.5"
+                    width="9"
+                    height="11.5"
+                    rx="1.5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.25"
+                  />
+                  <rect
+                    x="2"
+                    y="4.5"
+                    width="9"
+                    height="10"
+                    rx="1.5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.25"
+                  />
+                </svg>{" "}
+                {t("copyAll", locale)}
               </button>
               <p>{t("shortcuts", locale)}</p>
             </footer>

@@ -124,6 +124,27 @@ export default defineContentScript({
       },
     };
 
+    const syncStudioTheme = () => {
+      if (!activeHost) return;
+      if (document.documentElement.dataset.theme === "paper") activeHost.dataset.theme = "paper";
+      else activeHost.removeAttribute("data-theme");
+    };
+    let themeObserver: MutationObserver | null = null;
+    const ensureThemeObserver = () => {
+      const root = document.documentElement;
+      if (!root || themeObserver || disposed) return;
+      const observer = new MutationObserver(syncStudioTheme);
+      try {
+        observer.observe(root, {
+          attributes: true,
+          attributeFilter: ["data-theme"],
+        });
+        themeObserver = observer;
+      } catch {
+        observer.disconnect();
+      }
+    };
+
     const removeStudio = () => {
       generation += 1;
       activeUi?.remove();
@@ -172,6 +193,7 @@ export default defineContentScript({
 
     const reconcile = () => {
       if (disposed) return;
+      ensureThemeObserver();
       const player = document.querySelector("hyperframes-player");
       const project = projectFromHash(location.hash);
       if (!player || !project) {
@@ -204,7 +226,9 @@ export default defineContentScript({
           const rootNode = container.getRootNode();
           if (rootNode instanceof ShadowRoot) {
             activeHost = rootNode.host instanceof HTMLElement ? rootNode.host : null;
-          } else activeHost = container.parentElement;
+          } else {
+            activeHost = container.parentElement;
+          }
           const root = createRoot(container);
           root.render(
             <NotePanel
@@ -215,6 +239,7 @@ export default defineContentScript({
               storageKey={`${controller.storageKey}:panel`}
             />,
           );
+          syncStudioTheme();
           return root;
         },
         onRemove(root) {
@@ -319,6 +344,8 @@ export default defineContentScript({
     const mutationObserver = new MutationObserver(reconcile);
     mutationObserver.observe(document, { childList: true, subtree: true });
     ctx.onInvalidated(() => mutationObserver.disconnect());
+    ensureThemeObserver();
+    ctx.onInvalidated(() => themeObserver?.disconnect());
 
     void injectScript("/bridge.js", {
       keepInDom: false,

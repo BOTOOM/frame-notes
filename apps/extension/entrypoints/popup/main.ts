@@ -1,3 +1,4 @@
+import { createBrandGlyphSvg } from "../../src/brand-glyph";
 import {
   dictationEngineStorageName,
   isDictationEngineChoice,
@@ -30,9 +31,15 @@ function button(text: string, disabled: boolean, handler: () => void): HTMLButto
 async function openPopup(): Promise<void> {
   if (!root) return;
   root.replaceChildren();
+  const brand = document.createElement("div");
+  brand.className = "brand";
+  const mark = document.createElement("span");
+  mark.className = "brand-mark";
+  mark.append(createBrandGlyphSvg());
   const heading = document.createElement("h1");
   heading.textContent = t("appName", locale);
-  root.append(heading);
+  brand.append(mark, heading);
+  root.append(brand);
 
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   let status: TabStatus = { detected: false, project: null, noteCount: 0 };
@@ -54,13 +61,13 @@ async function openPopup(): Promise<void> {
     count.className = "count";
     count.textContent = `${status.noteCount} ${t("notes", locale)} · ${status.project ?? t("unknownProject", locale)}`;
     root.append(count);
-    root.append(
-      button(t("copyAll", locale), false, () => {
-        if (tab?.id !== undefined) {
-          void browser.tabs.sendMessage(tab.id, { namespace, type: "copy" }).catch(() => undefined);
-        }
-      }),
-    );
+    const copyAll = button(t("copyAll", locale), false, () => {
+      if (tab?.id !== undefined) {
+        void browser.tabs.sendMessage(tab.id, { namespace, type: "copy" }).catch(() => undefined);
+      }
+    });
+    copyAll.className = "copy-all";
+    root.append(copyAll);
   }
 
   const engineLabel = document.createElement("label");
