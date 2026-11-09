@@ -81,7 +81,7 @@ export const legalContent: Record<Locale, Record<LegalPageKind, LegalCopy>> = {
         {
           title: "Cambios y contacto",
           paragraphs: [
-            "Los cambios de esta política se publican en esta página con una fecha actualizada. Para consultas, escribe al correo de contacto indicado o abre una incidencia en GitHub Issues.",
+            "Los cambios en esta política se publican en esta página. Si tienes preguntas, usa el correo de contacto indicado o abre un ticket en GitHub Issues.",
           ],
         },
       ],
@@ -190,7 +190,7 @@ export const legalContent: Record<Locale, Record<LegalPageKind, LegalCopy>> = {
         {
           title: "Changes and contact",
           paragraphs: [
-            "Changes to this policy are published on this page with an updated date. For questions, use the listed contact email or open a GitHub Issues ticket.",
+            "Changes to this policy are published on this page. For questions, use the listed contact email or open a GitHub Issues ticket.",
           ],
         },
       ],

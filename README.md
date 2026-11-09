@@ -81,5 +81,6 @@ does not touch the landing app.
 
 The landing's privacy policy and terms are informational and are not legal
 advice. Optional legal/contact values can be configured with
-`NEXT_PUBLIC_LEGAL_OWNER` and `NEXT_PUBLIC_CONTACT_EMAIL`; unset values remain
-omitted, with GitHub Issues used as the contact channel.
+`NEXT_PUBLIC_LEGAL_OWNER`, `NEXT_PUBLIC_CONTACT_EMAIL`, and
+`NEXT_PUBLIC_LEGAL_EFFECTIVE_DATE`; unset values remain omitted, with GitHub
+Issues used as the contact channel.
