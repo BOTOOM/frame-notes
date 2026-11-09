@@ -9,6 +9,7 @@ import type {
 import { currentLocale, startLocalePreferenceWatch, subscribeLocale } from "../src/i18n";
 import { parseFps } from "../src/model";
 import { NotePanel, type PanelAction, type PanelActionRef } from "../src/panel";
+import { resizeActionForKey } from "../src/panel-layout";
 import { NoteSession, type PlayerCommandValue, type PlayerState } from "../src/session";
 import "../src/content.css";
 
@@ -188,6 +189,15 @@ export default defineContentScript({
         if (event.key === "Escape") {
           event.preventDefault();
           actionRef.current?.("escape");
+          return;
+        }
+        if (target instanceof HTMLElement && target.classList.contains("fn-resize-handle")) {
+          const resizeAction = resizeActionForKey(event);
+          if (resizeAction) {
+            event.preventDefault();
+            event.stopPropagation();
+            actionRef.current?.(resizeAction);
+          }
           return;
         }
         if (actionRef.languageMenuOpen) {

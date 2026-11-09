@@ -50,7 +50,13 @@ import {
   type SortOrder,
   sortNotes,
 } from "./model";
-import { clampListHeight } from "./panel-layout";
+import {
+  clampListHeight,
+  isResizeKeyAction,
+  minListHeight,
+  type ResizeKeyAction,
+  resizeActionForKey,
+} from "./panel-layout";
 import type { NoteSession } from "./session";
 import { nudgeFrames } from "./timeline-math";
 import { TimelineOverlay } from "./timeline-overlay";
@@ -71,7 +77,8 @@ export type PanelAction =
   | "locale-first"
   | "locale-last"
   | "dialog-tab-next"
-  | "dialog-tab-previous";
+  | "dialog-tab-previous"
+  | ResizeKeyAction;
 export interface PanelActionRef {
   current: ((action: PanelAction) => void) | null;
   languageMenuOpen?: boolean;
@@ -189,6 +196,7 @@ export function NotePanel({
   }));
   const [minimized, setMinimized] = useState(false);
   const [listHeight, setListHeight] = useState<number | null>(null);
+  const [, setResizeValuesRevision] = useState(0);
   const [isResizing, setIsResizing] = useState(false);
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [localeMenuOpen, setLocaleMenuOpen] = useState(false);
@@ -344,6 +352,7 @@ export function NotePanel({
         const next = clampPosition(current.left, current.top, bounds.width, bounds.height);
         return next.left === current.left && next.top === current.top ? current : next;
       });
+      setResizeValuesRevision((revision) => revision + 1);
     };
     const resizeObserver = new ResizeObserver(clampPanel);
     resizeObserver.observe(panel);
@@ -382,6 +391,62 @@ export function NotePanel({
     };
     if (nextListHeight !== null) saved.listHeight = nextListHeight;
     void storage.setItem(storageKey, saved).catch(() => undefined);
+  };
+
+  const getAvailableListHeight = (chrome: number) =>
+    window.innerHeight - position.top - panelMargin - chrome;
+
+  const getListResizeValues = () => {
+    const panelBounds = panelRef.current?.getBoundingClientRect();
+    const listBounds = notesListRef.current?.getBoundingClientRect();
+    if (!panelBounds || !listBounds) return null;
+    const chrome = resizeRef.current?.chrome ?? panelBounds.height - listBounds.height;
+    const available = getAvailableListHeight(chrome);
+    return {
+      available,
+      min: clampListHeight(minListHeight, available),
+      max: clampListHeight(available, available),
+      now: clampListHeight(listHeight ?? listBounds.height, available),
+    };
+  };
+
+  const resetListHeight = () => {
+    resizeRef.current = null;
+    setIsResizing(false);
+    setListHeight(null);
+    persistPreferences(position, minimized, sortOrder, null);
+  };
+
+  const applyResizeKeyboardAction = (action: ResizeKeyAction) => {
+    if (action === "resize-reset") {
+      resetListHeight();
+      return;
+    }
+    const values = getListResizeValues();
+    if (!values) return;
+    let height: number;
+    switch (action) {
+      case "resize-up":
+        height = clampListHeight(values.now - 16, values.available);
+        break;
+      case "resize-up-fast":
+        height = clampListHeight(values.now - 64, values.available);
+        break;
+      case "resize-down":
+        height = clampListHeight(values.now + 16, values.available);
+        break;
+      case "resize-down-fast":
+        height = clampListHeight(values.now + 64, values.available);
+        break;
+      case "resize-min":
+        height = values.min;
+        break;
+      case "resize-max":
+        height = values.max;
+        break;
+    }
+    setListHeight(height);
+    persistPreferences(position, minimized, sortOrder, height);
   };
 
   const restoreFocus = () => {
@@ -582,6 +647,8 @@ export function NotePanel({
         focusLocaleOption(action);
       } else if (action === "dialog-tab-next" || action === "dialog-tab-previous") {
         focusDeleteAllAction(action);
+      } else if (isResizeKeyAction(action)) {
+        applyResizeKeyboardAction(action);
       }
     };
     actionRef.current = handler;
@@ -663,7 +730,7 @@ export function NotePanel({
     if (!resize) return null;
     const height = clampListHeight(
       resize.startHeight + clientY - resize.startY,
-      window.innerHeight - position.top - panelMargin - resize.chrome,
+      getAvailableListHeight(resize.chrome),
     );
     resize.height = height;
     setListHeight(height);
@@ -732,6 +799,7 @@ export function NotePanel({
           ? t("syncError", locale)
           : t("synced", locale);
   const syncTitle = syncStatus === "synced" ? t("syncedTitle", locale) : syncLabel;
+  const resizeValues = getListResizeValues();
 
   return (
     <div className="fn-layer">
@@ -1172,8 +1240,19 @@ export function NotePanel({
             className={`fn-resize-handle${isResizing ? " fn-resize-handle--active" : ""}`}
             role="separator"
             aria-orientation="horizontal"
+            tabIndex={0}
             aria-label={t("resizePanel", locale)}
-            title={t("resizePanel", locale)}
+            aria-valuemin={resizeValues?.min ?? minListHeight}
+            aria-valuemax={resizeValues?.max ?? minListHeight}
+            aria-valuenow={resizeValues?.now ?? minListHeight}
+            title={`${t("resizePanel", locale)} · ${t("resizePanelHint", locale)}`}
+            onKeyDown={(event) => {
+              const action = resizeActionForKey(event);
+              if (!action) return;
+              event.preventDefault();
+              event.stopPropagation();
+              applyResizeKeyboardAction(action);
+            }}
             onPointerDown={handleResizePointerDown}
             onPointerMove={handleResizePointerMove}
             onPointerUp={handleResizePointerUp}
@@ -1181,10 +1260,7 @@ export function NotePanel({
             onDoubleClick={(event) => {
               event.stopPropagation();
               event.preventDefault();
-              resizeRef.current = null;
-              setIsResizing(false);
-              setListHeight(null);
-              persistPreferences(position, minimized, sortOrder, null);
+              resetListHeight();
             }}
           />
         )}
