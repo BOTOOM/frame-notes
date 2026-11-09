@@ -135,6 +135,15 @@
   font-size: 17px;
 }
 
+.fn-loop-action {
+  color: #ffd08a;
+}
+
+.fn-loop-action--active {
+  background: rgba(255, 180, 91, 0.18);
+  color: #fff0d3;
+}
+
 .fn-icon-button:hover,
 .fn-small-action:hover {
   background: rgba(156, 170, 207, 0.12);
@@ -281,9 +290,15 @@
   background: rgba(23, 33, 56, 0.78);
 }
 
+.fn-note {
+  min-width: 0;
+}
+
 .fn-note-top {
   display: flex;
   min-height: 25px;
+  min-width: 0;
+  flex-wrap: wrap;
   align-items: center;
   gap: 5px;
 }
@@ -319,6 +334,14 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 10px;
   white-space: nowrap;
+}
+
+.fn-range-duration {
+  display: block;
+  margin-top: 2px;
+  color: #8f9bb5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
 }
 
 .fn-note-actions {
@@ -373,10 +396,6 @@
   font-size: 10px;
 }
 
-.fn-panel .fn-time-fields label span {
-  grid-column: 1 / -1;
-}
-
 .fn-time-fields input,
 .fn-editor textarea {
   width: 100%;
@@ -393,6 +412,27 @@
   height: 28px;
   padding: 0 7px;
   font-size: 11px;
+}
+
+.fn-panel .fn-time-fields label span {
+  grid-column: 1 / -1;
+}
+
+.fn-time-fields label > input {
+  grid-column: 1 / -1;
+}
+
+.fn-time-controls {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 4px;
+}
+
+.fn-time-nudges {
+  display: flex;
+  flex: 1;
+  gap: 3px;
 }
 
 .fn-time-fields input:focus,
@@ -412,6 +452,166 @@
   font-size: 10px;
 }
 
+.fn-time-nudges button {
+  min-width: 0;
+  flex: 1;
+  padding: 0 3px;
+  color: #c5c0ff;
+}
+
+.fn-detail {
+  display: grid;
+  gap: 6px;
+  padding: 4px 12px 9px;
+}
+
+.fn-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #9da9c4;
+  font-size: 10px;
+}
+
+.fn-detail-controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #d5dbeb;
+  font-variant-numeric: tabular-nums;
+}
+
+.fn-detail-controls button {
+  display: grid;
+  width: 20px;
+  height: 19px;
+  place-items: center;
+  border: 1px solid rgba(154, 169, 205, 0.2);
+  border-radius: 5px;
+  background: rgba(45, 57, 86, 0.8);
+  color: #e1e6f4;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.fn-detail-controls button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.fn-detail-track {
+  position: relative;
+  height: 52px;
+  overflow: hidden;
+  border: 1px solid rgba(141, 156, 191, 0.18);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(21, 31, 53, 0.95), rgba(15, 23, 40, 0.96));
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.fn-detail-second {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(148, 163, 195, 0.2);
+  pointer-events: none;
+}
+
+.fn-panel .fn-detail-track .fn-detail-second span {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  color: #8e9bb8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.fn-detail-frame {
+  position: absolute;
+  bottom: 0;
+  width: 1px;
+  height: 5px;
+  background: rgba(160, 174, 207, 0.45);
+  pointer-events: none;
+}
+
+.fn-detail-draft {
+  position: absolute;
+  top: 19px;
+  height: 24px;
+  border: 1px solid rgba(153, 147, 255, 0.85);
+  border-radius: 4px;
+  background: rgba(116, 106, 235, 0.2);
+  pointer-events: none;
+}
+
+.fn-detail-note {
+  position: absolute;
+  z-index: 2;
+  height: 5px;
+  border: 1px solid rgba(255, 218, 152, 0.82);
+  border-radius: 4px;
+  background: rgba(255, 177, 79, 0.58);
+  pointer-events: none;
+}
+
+.fn-detail-note--point {
+  border: 0;
+  border-radius: 1px;
+  background: #ffc36f;
+}
+
+.fn-detail-playhead {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #a7a2ff;
+  box-shadow: 0 0 5px rgba(154, 147, 255, 0.7);
+  pointer-events: none;
+}
+
+.fn-timeline-overlay {
+  position: fixed;
+  z-index: 2147483646;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.fn-timeline-note-range,
+.fn-timeline-note-point {
+  position: absolute;
+  top: 0;
+  pointer-events: none;
+}
+
+.fn-timeline-note-range {
+  border-top: 2px solid rgba(255, 187, 103, 0.98);
+  background: rgba(255, 165, 69, 0.14);
+  opacity: 0.74;
+}
+
+.fn-timeline-note-point {
+  width: 2px;
+  background: rgba(255, 192, 112, 0.9);
+  box-shadow: 0 0 5px rgba(255, 174, 80, 0.55);
+}
+
+.fn-timeline-note-range[data-highlighted="true"] {
+  background: rgba(255, 169, 77, 0.28);
+  box-shadow: 0 0 10px rgba(255, 178, 82, 0.48);
+  opacity: 1;
+}
+
+.fn-timeline-note-point[data-highlighted="true"] {
+  background: #ffe0aa;
+  box-shadow: 0 0 9px rgba(255, 191, 113, 0.95);
+}
+
 .fn-editor textarea {
   display: block;
   min-height: 68px;
@@ -424,6 +624,95 @@
 
 .fn-editor textarea::placeholder {
   color: #6f7b96;
+}
+
+.fn-dictation {
+  display: grid;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.fn-dictation-row {
+  display: flex;
+  min-height: 27px;
+  align-items: center;
+  gap: 7px;
+}
+
+.fn-mic-button {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(157, 166, 213, 0.24);
+  border-radius: 7px;
+  background: rgba(96, 91, 196, 0.18);
+  color: #e8e9ff;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.fn-mic-button--listening {
+  border-color: rgba(255, 142, 130, 0.72);
+  background: rgba(180, 75, 73, 0.45);
+  animation: fn-mic-pulse 1.1s ease-in-out infinite;
+}
+
+.fn-mic-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.fn-dictation-status {
+  color: #9ca9c4;
+  font-size: 10px;
+}
+
+.fn-local-audio {
+  margin-left: auto;
+  color: #8dc9b6;
+  font-size: 9px;
+}
+
+.fn-dictation-consent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  color: #c2cbe0;
+  font-size: 10px;
+}
+
+.fn-dictation-consent button {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border: 1px solid rgba(169, 162, 255, 0.32);
+  border-radius: 6px;
+  background: rgba(96, 91, 196, 0.25);
+  color: #f1f0ff;
+  cursor: pointer;
+  font-size: 9px;
+}
+
+.fn-dictation-progress {
+  width: 100%;
+  height: 4px;
+  accent-color: #8e87f0;
+}
+
+.fn-dictation-interim {
+  margin: 0;
+  color: #929db4;
+  font-size: 11px;
+  font-style: italic;
+  white-space: pre-wrap;
+}
+
+@keyframes fn-mic-pulse {
+  50% {
+    box-shadow: 0 0 0 3px rgba(239, 117, 111, 0.14);
+  }
 }
 
 .fn-validation {

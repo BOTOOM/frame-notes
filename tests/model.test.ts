@@ -3,6 +3,7 @@ import {
   chooseNotesDoc,
   copyText,
   emptyNotesDoc,
+  formatRangeDuration,
   formatTime,
   framesAt,
   type Note,
@@ -11,6 +12,7 @@ import {
   notesMarkdown,
   parseFps,
   parseTime,
+  rangeDuration,
   sortNotes,
 } from "../apps/extension/src/model";
 
@@ -64,20 +66,26 @@ describe("notes documents", () => {
     ]);
   });
 
-  it("formats copy and Markdown with frames and indented continuation lines", () => {
+  it("formats range duration in copy and Markdown without changing the JSON schema", () => {
     const doc = {
       ...emptyNotesDoc("demo"),
       fps: 30,
       notes: [
         note("point", 7, null, "Subir el volumen"),
-        note("range", 3.433, 5.1, "Cambiar el título\nAñadir una sombra"),
+        note("range", 3.433, 3.666, "Cambiar el título\nAñadir una sombra"),
       ],
     };
     expect(copyText(doc, "es")).toBe(
       "Notas de revisión — demo (2 notas, 30 fps)\n" +
-        "1) 00:03.433 → 00:05.100 (f103–f153): Cambiar el título\n   Añadir una sombra\n" +
+        "1) 00:03.433 → 00:03.666 (f103–f110, 0.233 s): Cambiar el título\n   Añadir una sombra\n" +
         "2) 00:07.000 (f210): Subir el volumen",
     );
+    const rangeNote = doc.notes.find((note) => note.id === "range");
+    expect(rangeNote).toBeDefined();
+    if (rangeNote) {
+      expect(rangeDuration(rangeNote, 30)?.frames).toBe(7);
+      expect(formatRangeDuration(rangeNote, 30)).toBe("0.233 s · 7 f");
+    }
     expect(notesMarkdown(doc, "es")).toContain("Producido por Frame Notes");
     expect(notesMarkdown(doc, "es")).toContain(copyText(doc, "es"));
     expect(JSON.parse(notesJson(doc))).toMatchObject({ schemaVersion: 1, project: "demo" });

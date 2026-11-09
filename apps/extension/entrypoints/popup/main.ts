@@ -1,3 +1,8 @@
+import {
+  dictationEngineStorageName,
+  isDictationEngineChoice,
+  saveDictationEngineChoice,
+} from "../../src/dictation/preferences";
 import { currentLocale, t } from "../../src/i18n";
 import "./style.css";
 
@@ -57,6 +62,35 @@ async function openPopup(): Promise<void> {
       }),
     );
   }
+
+  const engineLabel = document.createElement("label");
+  engineLabel.className = "dictation-choice";
+  const engineTitle = document.createElement("span");
+  engineTitle.textContent = t("dictationEngine", locale);
+  const engine = document.createElement("select");
+  const choices = [
+    ["auto", t("dictationAuto", locale)],
+    ["chrome-local", t("dictationChrome", locale)],
+    ["whisper", t("dictationWhisper", locale)],
+  ] as const;
+  for (const [value, label] of choices) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    engine.append(option);
+  }
+  const savedChoice = await browser.storage.local
+    .get(dictationEngineStorageName)
+    .then((values) => values[dictationEngineStorageName])
+    .catch(() => null);
+  engine.value = isDictationEngineChoice(savedChoice) ? savedChoice : "auto";
+  engine.addEventListener("change", () => {
+    if (isDictationEngineChoice(engine.value)) {
+      void saveDictationEngineChoice(engine.value).catch(() => undefined);
+    }
+  });
+  engineLabel.append(engineTitle, engine);
+  root.append(engineLabel);
 
   const hints = document.createElement("div");
   hints.className = "hints";
