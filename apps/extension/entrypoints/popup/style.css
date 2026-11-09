@@ -136,6 +136,11 @@ button:disabled {
   background: var(--fn-hover);
 }
 
+.copy-all svg {
+  margin-right: 6px;
+  vertical-align: -3px;
+}
+
 .dictation-choice {
   display: grid;
   gap: 5px;

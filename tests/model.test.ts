@@ -10,9 +10,11 @@ import {
   normalizeNote,
   notesJson,
   notesMarkdown,
+  orderNotes,
   parseFps,
   parseTime,
   rangeDuration,
+  restoreDeletedNotes,
   sortNotes,
 } from "../apps/extension/src/model";
 
@@ -63,6 +65,24 @@ describe("notes documents", () => {
     expect(sortNotes([note("later", 8, null), note("earlier", 2, null)])).toMatchObject([
       { id: "earlier" },
       { id: "later" },
+    ]);
+  });
+
+  it("orders display notes in either direction without mutating stable ties", () => {
+    const input = [note("late", 5, null), note("tie-a", 2, null), note("tie-b", 2, null)];
+    expect(orderNotes(input, "asc").map(({ id }) => id)).toEqual(["tie-a", "tie-b", "late"]);
+    expect(orderNotes(input, "desc").map(({ id }) => id)).toEqual(["late", "tie-a", "tie-b"]);
+    expect(input.map(({ id }) => id)).toEqual(["late", "tie-a", "tie-b"]);
+    expect(orderNotes(input, "desc")).not.toBe(input);
+  });
+
+  it("restores deleted notes sorted without duplicating existing notes", () => {
+    const current = [note("middle", 5, null)];
+    const deleted = [note("late", 9, null), note("early", 1, null)];
+    expect(restoreDeletedNotes(current, deleted).map(({ id }) => id)).toEqual([
+      "early",
+      "middle",
+      "late",
     ]);
   });
 

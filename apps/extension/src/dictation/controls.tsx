@@ -1,4 +1,6 @@
-import { currentLocale, type TranslationKey, t } from "../i18n";
+import { Mic, MicOff } from "lucide-react";
+import { type TranslationKey, t } from "../i18n";
+import { useLocale } from "../use-locale";
 import type { DictationController, DictationError, DictationPhase } from "./use-dictation";
 
 interface DictationControlsProps {
@@ -24,7 +26,7 @@ const phaseKeys: Record<DictationPhase, TranslationKey> = {
 };
 
 export function DictationControls({ dictation }: DictationControlsProps) {
-  const locale = currentLocale();
+  const locale = useLocale();
   const { view } = dictation;
   const canStop = view.phase === "listening";
   const canStart = view.phase === "idle" || view.phase === "error";
@@ -56,7 +58,11 @@ export function DictationControls({ dictation }: DictationControlsProps) {
           aria-label={t(canStop ? "dictationStop" : "dictationStart", locale)}
           title={t(canStop ? "dictationStop" : "dictationStart", locale)}
         >
-          {canStop ? "■" : "🎙"}
+          {canStop ? (
+            <MicOff size={14} strokeWidth={2} aria-hidden="true" focusable="false" />
+          ) : (
+            <Mic size={14} strokeWidth={2} aria-hidden="true" focusable="false" />
+          )}
         </button>
         <span className="fn-dictation-status">
           {t(

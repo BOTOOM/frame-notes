@@ -1,10 +1,12 @@
+import { ZoomIn, ZoomOut } from "lucide-react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { storage } from "wxt/utils/storage";
-import { currentLocale, t } from "./i18n";
+import { t } from "./i18n";
 import { formatTime, type Note, sortNotes } from "./model";
 import type { NoteSession } from "./session";
 import { detailWindow, type TimeWindow, timeToX, xToTime } from "./timeline-math";
+import { useLocale } from "./use-locale";
 
 const windowWidths = [1, 2, 4, 8, 15, 30];
 const windowWidthStorageKey: `local:${string}` = "local:frame-notes:detail-window-width";
@@ -34,7 +36,7 @@ export function DetailStrip({ session, notes, fps, editorStart, editorEnd }: Det
   const trackRef = useRef<HTMLDivElement | null>(null);
   const dragWindow = useRef<TimeWindow | null>(null);
   const draggingPointer = useRef<number | null>(null);
-  const locale = currentLocale();
+  const locale = useLocale();
   const draftCenter =
     editorStart === null ? null : editorEnd === null ? editorStart : (editorStart + editorEnd) / 2;
   const visibleWindow = detailWindow(scrubCenter ?? draftCenter ?? currentTime, width, duration);
@@ -138,8 +140,9 @@ export function DetailStrip({ session, notes, fps, editorStart, editorEnd }: Det
             onClick={() => changeWidth(-1)}
             disabled={widthWidthsAt(width) === 0}
             aria-label={t("narrowDetail", locale)}
+            title={t("narrowDetail", locale)}
           >
-            −
+            <ZoomOut size={14} strokeWidth={2} aria-hidden="true" focusable="false" />
           </button>
           <span>{width}s</span>
           <button
@@ -147,8 +150,9 @@ export function DetailStrip({ session, notes, fps, editorStart, editorEnd }: Det
             onClick={() => changeWidth(1)}
             disabled={widthWidthsAt(width) === windowWidths.length - 1}
             aria-label={t("widenDetail", locale)}
+            title={t("widenDetail", locale)}
           >
-            +
+            <ZoomIn size={14} strokeWidth={2} aria-hidden="true" focusable="false" />
           </button>
         </div>
       </div>

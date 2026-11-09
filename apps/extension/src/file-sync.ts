@@ -1,5 +1,6 @@
 import {
   chooseNotesDoc,
+  emptyNotesDoc,
   type Locale,
   type NotesDoc,
   notesJson,
@@ -163,7 +164,7 @@ export async function putFile(
 export async function syncProjectNotes(
   doc: NotesDoc,
   versions: FileVersions,
-  locale: Locale,
+  locale: Locale | (() => Locale),
   fetcher: FetchLike = fetch,
   deletedIds: ReadonlySet<string> = new Set(),
 ): Promise<NotesDoc> {
@@ -187,15 +188,48 @@ export async function syncProjectNotes(
       selected = mergeNotes(selected, remote.doc, deletedIds) ?? selected;
     }
   }
-  const markdownVersion = await putFile(
-    fetcher,
-    selected.project,
-    "review-notes.md",
-    notesMarkdown(selected, locale),
-    versions.get("review-notes.md") ?? null,
-  );
-  versions.set("review-notes.md", markdownVersion);
+  const getLocale = typeof locale === "function" ? locale : () => locale;
+  let markdownLocale: Locale;
+  do {
+    markdownLocale = getLocale();
+    const markdownVersion = await putFile(
+      fetcher,
+      selected.project,
+      "review-notes.md",
+      notesMarkdown(selected, markdownLocale),
+      versions.get("review-notes.md") ?? null,
+    );
+    versions.set("review-notes.md", markdownVersion);
+  } while (markdownLocale !== getLocale());
   return selected;
+}
+
+export async function syncProjectMarkdown(
+  project: string,
+  locale: Locale,
+  fetcher: FetchLike = fetch,
+): Promise<void> {
+  for (let retry = 0; ; retry += 1) {
+    const remote = await readProjectNotes(project, fetcher);
+    if (remote.markdown === null && (!remote.doc || remote.doc.notes.length === 0)) return;
+
+    const markdown = notesMarkdown(remote.doc ?? emptyNotesDoc(project), locale);
+    if (markdown === remote.markdown) return;
+
+    try {
+      await putFile(
+        fetcher,
+        project,
+        "review-notes.md",
+        markdown,
+        remote.versions.get("review-notes.md") ?? null,
+        false,
+      );
+      return;
+    } catch (error) {
+      if (!(error instanceof FileConflictError) || retry >= 2) throw error;
+    }
+  }
 }
 
 export function mergeNotes(
