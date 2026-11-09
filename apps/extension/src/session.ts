@@ -198,15 +198,11 @@ export class NoteSession {
   setLocale(locale: Locale): Promise<void> {
     if (this.disposed || locale === this.locale) return this.writeQueue;
     this.locale = locale;
-    if (
-      this.debounceTimer !== null ||
-      this.pendingWrite ||
-      this.hasLocalChanges ||
-      this.pendingProjectWrites > 0
-    ) {
+    if (this.debounceTimer !== null || this.pendingWrite || this.pendingProjectWrites > 0) {
       return this.writeQueue;
     }
     this.publish({ syncStatus: "syncing" });
+    if (this.hasLocalChanges) return this.queueWrite(this.state.doc);
     return this.queueMarkdownSync(locale);
   }
 

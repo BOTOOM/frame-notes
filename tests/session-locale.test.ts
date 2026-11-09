@@ -142,6 +142,44 @@ describe("NoteSession locale changes", () => {
     session.dispose();
   });
 
+  it("retries a failed project write in the new locale", async () => {
+    const doc = emptyNotesDoc("demo");
+    const note = {
+      id: "one",
+      start: 1,
+      end: null,
+      text: "Review this",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    const { fetcher: projectFetcher, writes } = createProjectFetcher(doc, notesMarkdown(doc, "en"));
+    let failWrites = true;
+    const fetcher: FetchLike = async (input, init) => {
+      if (failWrites && init?.method === "PUT") return new Response(null, { status: 500 });
+      return projectFetcher(input, init);
+    };
+    vi.stubGlobal("fetch", fetcher);
+    vi.useFakeTimers();
+    const session = new NoteSession("demo", "http://localhost", () => undefined, "en");
+    await session.load();
+
+    session.updateNotes([note]);
+    await vi.advanceTimersByTimeAsync(800);
+    expect(session.getSyncStatusSnapshot()).toBe("error");
+
+    failWrites = false;
+    await session.setLocale("es");
+
+    expect(writes.map(({ path }) => path)).toEqual(["review-notes.json", "review-notes.md"]);
+    const jsonWrite = writes.find(({ path }) => path === "review-notes.json");
+    expect(JSON.parse(jsonWrite?.body ?? "{}").notes).toEqual([note]);
+    const markdownWrite = writes.find(({ path }) => path === "review-notes.md");
+    expect(markdownWrite?.body).toContain("# Notas de revisión — demo");
+    expect(markdownWrite?.body).toBe(notesMarkdown({ ...doc, notes: [note] }, "es"));
+    expect(session.getSyncStatusSnapshot()).toBe("synced");
+    session.dispose();
+  });
+
   it("uses a pending local write to render Markdown in the new locale", async () => {
     const doc = emptyNotesDoc("demo");
     const note = {
