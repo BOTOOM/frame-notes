@@ -282,6 +282,23 @@ describe("project file synchronization", () => {
     expect(writes).toBe(0);
   });
 
+  it("does not overwrite Markdown when the remote JSON file is missing", async () => {
+    let writes = 0;
+    const fetcher: FetchLike = async (input, init) => {
+      if (init?.method === "PUT") writes += 1;
+      if (String(input).endsWith("review-notes.json")) {
+        return new Response(null, { status: 404 });
+      }
+      return new Response(JSON.stringify({ content: "# Existing notes\n", version: '"md-v1"' }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+
+    await syncProjectMarkdown("demo", "en", fetcher);
+
+    expect(writes).toBe(0);
+  });
+
   it("does not create Markdown for a zero-note document without a Markdown file", async () => {
     const doc = emptyNotesDoc("demo");
     let writes = 0;
