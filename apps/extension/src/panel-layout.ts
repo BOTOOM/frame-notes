@@ -1,18 +1,7 @@
-export const minPanelHeight = 240;
+export const minListHeight = 96;
 
-export function clampPanelHeight(
-  height: number,
-  top: number,
-  viewportHeight: number,
-  margin: number,
-): number {
-  const maxViewportHeight = viewportHeight - 2 * margin;
-  if (maxViewportHeight < minPanelHeight) return Math.max(0, maxViewportHeight);
+export function clampListHeight(height: number, available: number): number {
+  if (available < minListHeight) return Math.max(0, Math.round(available));
 
-  return Math.round(
-    Math.min(
-      maxViewportHeight,
-      Math.max(minPanelHeight, Math.min(height, viewportHeight - top - margin)),
-    ),
-  );
+  return Math.round(Math.max(minListHeight, Math.min(height, available)));
 }

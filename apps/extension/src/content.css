@@ -97,6 +97,10 @@
   color: var(--fn-text);
 }
 
+.fn-panel > :not(.fn-notes) {
+  flex-shrink: 0;
+}
+
 .fn-panel--minimized {
   width: auto;
   max-height: none;

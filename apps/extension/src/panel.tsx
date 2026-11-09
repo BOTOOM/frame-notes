@@ -50,7 +50,7 @@ import {
   type SortOrder,
   sortNotes,
 } from "./model";
-import { clampPanelHeight } from "./panel-layout";
+import { clampListHeight } from "./panel-layout";
 import type { NoteSession } from "./session";
 import { nudgeFrames } from "./timeline-math";
 import { TimelineOverlay } from "./timeline-overlay";
@@ -100,7 +100,7 @@ interface PanelPreferences {
   top: number;
   minimized: boolean;
   sortOrder: SortOrder;
-  height?: number;
+  listHeight?: number;
 }
 
 interface MarkerRect {
@@ -188,7 +188,7 @@ export function NotePanel({
     top: 64,
   }));
   const [minimized, setMinimized] = useState(false);
-  const [panelHeight, setPanelHeight] = useState<number | null>(null);
+  const [listHeight, setListHeight] = useState<number | null>(null);
   const [isResizing, setIsResizing] = useState(false);
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [localeMenuOpen, setLocaleMenuOpen] = useState(false);
@@ -197,6 +197,7 @@ export function NotePanel({
   const [toast, setToast] = useState("");
   const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
+  const notesListRef = useRef<HTMLElement | null>(null);
   const localeMenuRef = useRef<HTMLDivElement | null>(null);
   const localeToggleRef = useRef<HTMLButtonElement | null>(null);
   const deleteAllButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -212,6 +213,7 @@ export function NotePanel({
     startY: number;
     startHeight: number;
     height: number;
+    chrome: number;
   } | null>(null);
   const lastEditedId = useRef<string | null>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
@@ -272,19 +274,19 @@ export function NotePanel({
       .getItem<PanelPreferences>(storageKey)
       .then((saved) => {
         if (!active || !saved) return;
-        const savedHeight =
-          typeof saved.height === "number" && Number.isFinite(saved.height) && saved.height > 0
-            ? clampPanelHeight(saved.height, saved.top, window.innerHeight, panelMargin)
+        const savedListHeight =
+          typeof saved.listHeight === "number" &&
+          Number.isFinite(saved.listHeight) &&
+          saved.listHeight > 0
+            ? saved.listHeight
             : null;
-        setPanelHeight(savedHeight);
+        setListHeight(savedListHeight);
         setPosition(
           clampPosition(
             saved.left,
             saved.top,
             saved.minimized ? 170 : panelWidth,
-            saved.minimized
-              ? (panelRef.current?.offsetHeight ?? 500)
-              : (savedHeight ?? panelRef.current?.offsetHeight ?? 500),
+            panelRef.current?.offsetHeight ?? 500,
           ),
         );
         setMinimized(saved.minimized);
@@ -371,14 +373,14 @@ export function NotePanel({
     nextPosition = position,
     nextMinimized = minimized,
     nextSortOrder = sortOrder,
-    nextHeight: number | null = panelHeight,
+    nextListHeight: number | null = listHeight,
   ) => {
     const saved: PanelPreferences = {
       ...nextPosition,
       minimized: nextMinimized,
       sortOrder: nextSortOrder,
     };
-    if (nextHeight !== null) saved.height = nextHeight;
+    if (nextListHeight !== null) saved.listHeight = nextListHeight;
     void storage.setItem(storageKey, saved).catch(() => undefined);
   };
 
@@ -656,29 +658,29 @@ export function NotePanel({
     dragRef.current = null;
   };
 
-  const updatePanelHeight = (clientY: number): number | null => {
+  const updateListHeight = (clientY: number): number | null => {
     const resize = resizeRef.current;
     if (!resize) return null;
-    const height = clampPanelHeight(
+    const height = clampListHeight(
       resize.startHeight + clientY - resize.startY,
-      position.top,
-      window.innerHeight,
-      panelMargin,
+      window.innerHeight - position.top - panelMargin - resize.chrome,
     );
     resize.height = height;
-    setPanelHeight(height);
+    setListHeight(height);
     return height;
   };
 
   const handleResizePointerDown = (event: PointerEvent<HTMLDivElement>) => {
     event.stopPropagation();
     event.preventDefault();
-    const bounds = panelRef.current?.getBoundingClientRect();
-    if (!bounds) return;
+    const panelBounds = panelRef.current?.getBoundingClientRect();
+    const listBounds = notesListRef.current?.getBoundingClientRect();
+    if (!panelBounds || !listBounds) return;
     resizeRef.current = {
       startY: event.clientY,
-      startHeight: bounds.height,
-      height: bounds.height,
+      startHeight: listBounds.height,
+      height: listBounds.height,
+      chrome: panelBounds.height - listBounds.height,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
     setIsResizing(true);
@@ -688,7 +690,7 @@ export function NotePanel({
     if (!resizeRef.current) return;
     event.stopPropagation();
     event.preventDefault();
-    updatePanelHeight(event.clientY);
+    updateListHeight(event.clientY);
   };
 
   const handleResizePointerUp = (event: PointerEvent<HTMLDivElement>) => {
@@ -696,7 +698,7 @@ export function NotePanel({
     if (!resize) return;
     event.stopPropagation();
     event.preventDefault();
-    const height = updatePanelHeight(event.clientY) ?? resize.height;
+    const height = updateListHeight(event.clientY) ?? resize.height;
     resizeRef.current = null;
     setIsResizing(false);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -711,7 +713,7 @@ export function NotePanel({
     event.stopPropagation();
     event.preventDefault();
     resizeRef.current = null;
-    setPanelHeight(resize.height);
+    setListHeight(resize.height);
     setIsResizing(false);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -745,7 +747,6 @@ export function NotePanel({
         style={{
           left: position.left,
           top: position.top,
-          ...(panelHeight !== null && !minimized ? { height: panelHeight } : {}),
         }}
         aria-label={t("appName", locale)}
       >
@@ -927,7 +928,11 @@ export function NotePanel({
               editorStart={draftStart}
               editorEnd={draftEnd}
             />
-            <main className="fn-notes">
+            <main
+              className="fn-notes"
+              ref={notesListRef}
+              style={listHeight !== null ? { height: listHeight } : undefined}
+            >
               {fields?.isNew && (
                 <NoteEditor
                   fields={fields}
@@ -1178,7 +1183,7 @@ export function NotePanel({
               event.preventDefault();
               resizeRef.current = null;
               setIsResizing(false);
-              setPanelHeight(null);
+              setListHeight(null);
               persistPreferences(position, minimized, sortOrder, null);
             }}
           />
