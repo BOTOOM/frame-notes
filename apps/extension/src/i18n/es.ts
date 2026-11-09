@@ -66,6 +66,7 @@ export const es: Messages = {
   narrowDetail: "Reducir ventana de detalle",
   now: "Ahora",
   oldestFirst: "Del inicio al final",
+  resizePanel: "Arrastra para cambiar la altura · doble clic para restablecer",
   removeEnd: "Quitar fin",
   save: "Guardar",
   saving: "Guardando…",

@@ -62,6 +62,7 @@ export const en = {
   narrowDetail: "Narrow detail window",
   now: "Now",
   oldestFirst: "Start to end",
+  resizePanel: "Drag to resize · double-click to reset",
   removeEnd: "Remove end",
   save: "Save",
   saving: "Saving…",

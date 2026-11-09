@@ -50,6 +50,7 @@ import {
   type SortOrder,
   sortNotes,
 } from "./model";
+import { clampPanelHeight } from "./panel-layout";
 import type { NoteSession } from "./session";
 import { nudgeFrames } from "./timeline-math";
 import { TimelineOverlay } from "./timeline-overlay";
@@ -99,6 +100,7 @@ interface PanelPreferences {
   top: number;
   minimized: boolean;
   sortOrder: SortOrder;
+  height?: number;
 }
 
 interface MarkerRect {
@@ -186,6 +188,8 @@ export function NotePanel({
     top: 64,
   }));
   const [minimized, setMinimized] = useState(false);
+  const [panelHeight, setPanelHeight] = useState<number | null>(null);
+  const [isResizing, setIsResizing] = useState(false);
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [localeMenuOpen, setLocaleMenuOpen] = useState(false);
   const [deleted, setDeleted] = useState<Note[] | null>(null);
@@ -204,6 +208,11 @@ export function NotePanel({
   const caretRef = useRef<number | null>(null);
   const selectionRef = useRef<{ start: number; end: number } | null>(null);
   const dragRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
+  const resizeRef = useRef<{
+    startY: number;
+    startHeight: number;
+    height: number;
+  } | null>(null);
   const lastEditedId = useRef<string | null>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   fieldsRef.current = fields;
@@ -263,12 +272,19 @@ export function NotePanel({
       .getItem<PanelPreferences>(storageKey)
       .then((saved) => {
         if (!active || !saved) return;
+        const savedHeight =
+          typeof saved.height === "number" && Number.isFinite(saved.height) && saved.height > 0
+            ? clampPanelHeight(saved.height, saved.top, window.innerHeight, panelMargin)
+            : null;
+        setPanelHeight(savedHeight);
         setPosition(
           clampPosition(
             saved.left,
             saved.top,
             saved.minimized ? 170 : panelWidth,
-            panelRef.current?.offsetHeight ?? 500,
+            saved.minimized
+              ? (panelRef.current?.offsetHeight ?? 500)
+              : (savedHeight ?? panelRef.current?.offsetHeight ?? 500),
           ),
         );
         setMinimized(saved.minimized);
@@ -355,12 +371,14 @@ export function NotePanel({
     nextPosition = position,
     nextMinimized = minimized,
     nextSortOrder = sortOrder,
+    nextHeight: number | null = panelHeight,
   ) => {
     const saved: PanelPreferences = {
       ...nextPosition,
       minimized: nextMinimized,
       sortOrder: nextSortOrder,
     };
+    if (nextHeight !== null) saved.height = nextHeight;
     void storage.setItem(storageKey, saved).catch(() => undefined);
   };
 
@@ -638,6 +656,69 @@ export function NotePanel({
     dragRef.current = null;
   };
 
+  const updatePanelHeight = (clientY: number): number | null => {
+    const resize = resizeRef.current;
+    if (!resize) return null;
+    const height = clampPanelHeight(
+      resize.startHeight + clientY - resize.startY,
+      position.top,
+      window.innerHeight,
+      panelMargin,
+    );
+    resize.height = height;
+    setPanelHeight(height);
+    return height;
+  };
+
+  const handleResizePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    event.preventDefault();
+    const bounds = panelRef.current?.getBoundingClientRect();
+    if (!bounds) return;
+    resizeRef.current = {
+      startY: event.clientY,
+      startHeight: bounds.height,
+      height: bounds.height,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setIsResizing(true);
+  };
+
+  const handleResizePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (!resizeRef.current) return;
+    event.stopPropagation();
+    event.preventDefault();
+    updatePanelHeight(event.clientY);
+  };
+
+  const handleResizePointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    const resize = resizeRef.current;
+    if (!resize) return;
+    event.stopPropagation();
+    event.preventDefault();
+    const height = updatePanelHeight(event.clientY) ?? resize.height;
+    resizeRef.current = null;
+    setIsResizing(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    persistPreferences(position, minimized, sortOrder, height);
+  };
+
+  const handleResizePointerCancel = (event: PointerEvent<HTMLDivElement>) => {
+    const resize = resizeRef.current;
+    if (!resize) return;
+    event.stopPropagation();
+    event.preventDefault();
+    resizeRef.current = null;
+    setPanelHeight(resize.height);
+    setIsResizing(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    persistPreferences(position, minimized, sortOrder, resize.height);
+  };
+
   const draftStart = fields ? parseTime(fields.start, doc.fps) : null;
   const draftEnd = fields?.end.trim() ? parseTime(fields.end, doc.fps) : null;
   const syncLabel =
@@ -661,7 +742,11 @@ export function NotePanel({
       <section
         className={`fn-panel${minimized ? " fn-panel--minimized" : ""}`}
         ref={panelRef}
-        style={{ left: position.left, top: position.top }}
+        style={{
+          left: position.left,
+          top: position.top,
+          ...(panelHeight !== null && !minimized ? { height: panelHeight } : {}),
+        }}
         aria-label={t("appName", locale)}
       >
         <header
@@ -1075,6 +1160,28 @@ export function NotePanel({
               </>
             )}
           </div>
+        )}
+        {!minimized && (
+          // biome-ignore lint/a11y/useSemanticElements: This separator is an interactive resize handle.
+          <div
+            className={`fn-resize-handle${isResizing ? " fn-resize-handle--active" : ""}`}
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label={t("resizePanel", locale)}
+            title={t("resizePanel", locale)}
+            onPointerDown={handleResizePointerDown}
+            onPointerMove={handleResizePointerMove}
+            onPointerUp={handleResizePointerUp}
+            onPointerCancel={handleResizePointerCancel}
+            onDoubleClick={(event) => {
+              event.stopPropagation();
+              event.preventDefault();
+              resizeRef.current = null;
+              setIsResizing(false);
+              setPanelHeight(null);
+              persistPreferences(position, minimized, sortOrder, null);
+            }}
+          />
         )}
       </section>
     </div>
