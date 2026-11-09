@@ -311,6 +311,7 @@ export default defineContentScript({
         if (event.origin !== location.origin || !sameOriginFrame(event.source) || !message.action) {
           return;
         }
+        if (actionRef.deleteAllDialogOpen) return;
         actionRef.current?.(message.action);
         return;
       }
