@@ -11,5 +11,5 @@ export const issuesUrl = repoUrl + "/issues";
 export const legal = {
   owner: process.env.NEXT_PUBLIC_LEGAL_OWNER ?? null,
   contactEmail: process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? null,
-  effectiveDate: null,
+  effectiveDate: process.env.NEXT_PUBLIC_LEGAL_EFFECTIVE_DATE ?? null,
 };
