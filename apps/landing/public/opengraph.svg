@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <title>Frame Notes — notas de revisión local para HyperFrames Studio</title>
+  <rect width="1200" height="630" fill="#242421" />
+  <rect width="12" height="630" fill="#e6b45d" />
+  <image href="logo.svg" x="72" y="82" width="92" height="92" />
+  <text x="188" y="145" fill="#f2f0eb" font-family="Arial, sans-serif" font-size="58" font-weight="700">Frame Notes</text>
+  <text x="74" y="266" fill="#e6b45d" font-family="Arial, sans-serif" font-size="20" font-weight="700" letter-spacing="3">NOTAS LOCALES DE REVISIÓN</text>
+  <text x="74" y="330" fill="#f2f0eb" font-family="Arial, sans-serif" font-size="34" font-weight="600">Encuentra el instante.</text>
+  <text x="74" y="378" fill="#f2f0eb" font-family="Arial, sans-serif" font-size="34" font-weight="600">Comparte el contexto.</text>
+  <text x="74" y="432" fill="#b8b5ae" font-family="Arial, sans-serif" font-size="21">Notas por rango de tiempo y cuadro</text>
+  <text x="74" y="464" fill="#b8b5ae" font-family="Arial, sans-serif" font-size="21">para HyperFrames Studio y tus agentes.</text>
+  <rect x="72" y="518" width="490" height="64" rx="10" fill="#302f2b" stroke="#4d4b44" />
+  <text x="96" y="558" fill="#e6b45d" font-family="monospace" font-size="22">12:00.000 → 12:00.200</text>
+  <text x="628" y="574" fill="#88857e" font-family="Arial, sans-serif" font-size="17" letter-spacing="2">LOCAL · EDITABLE · FRAME-ACCURATE</text>
+  <rect x="600" y="54" width="548" height="478" rx="16" fill="#302f2b" stroke="#4d4b44" />
+  <image href="media/hero.png" x="610" y="64" width="528" height="458" preserveAspectRatio="xMidYMid meet" />
+</svg>

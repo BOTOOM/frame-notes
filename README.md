@@ -70,3 +70,17 @@ unavailable.
 
 See [docs/RELEASING.md](docs/RELEASING.md) for automated versioning, releases,
 and extension-store submissions.
+
+## Deploying the landing on Vercel
+
+Create a Vercel project for this repository with **Root Directory** set to
+`apps/landing`. Set `NEXT_PUBLIC_SITE_URL` to the landing's canonical HTTPS URL
+and assign the chosen subdomain in the Vercel project settings. Vercel builds
+the Next.js app natively; `apps/landing/vercel.json` skips builds when a change
+does not touch the landing app.
+
+The landing's privacy policy and terms are informational and are not legal
+advice. Optional legal/contact values can be configured with
+`NEXT_PUBLIC_LEGAL_OWNER`, `NEXT_PUBLIC_CONTACT_EMAIL`, and
+`NEXT_PUBLIC_LEGAL_EFFECTIVE_DATE`; unset values remain omitted, with GitHub
+Issues used as the contact channel.
