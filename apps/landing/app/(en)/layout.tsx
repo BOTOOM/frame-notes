@@ -1,20 +1,21 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { seoMetadata } from "@/src/content";
 import { siteUrl } from "../../site.config";
 import "../globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "Frame Notes — review notes for HyperFrames Studio",
+    default: seoMetadata.en.title,
     template: "%s | Frame Notes",
   },
-  description:
-    "Frame-accurate review notes for HyperFrames Studio. Mark time ranges and give your agent clear context.",
+  description: seoMetadata.en.description,
   openGraph: {
     type: "website",
     siteName: "Frame Notes",
     locale: "en_US",
+    alternateLocale: "es_ES",
     images: [{ url: "/opengraph-image.png", width: 1200, height: 630, alt: "Frame Notes" }],
   },
   twitter: {

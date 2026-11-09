@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { releasesUrl, repoUrl } from "../site.config";
 import { copyExample, type Locale, landingContent } from "../src/content";
+import { HomepageJsonLd } from "./homepage-json-ld";
 
 interface LandingPageProps {
   locale: Locale;
@@ -12,6 +13,7 @@ export function LandingPage({ locale }: LandingPageProps) {
 
   return (
     <>
+      <HomepageJsonLd locale={locale} />
       <section className="hero page-wrap">
         <div className="hero-copy">
           <div className="eyebrow">

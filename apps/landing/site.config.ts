@@ -1,5 +1,10 @@
 /* biome-ignore-all lint/style/useTemplate: Keep the exact public configuration expressions required by the spec. */
-export const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const configuredSiteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? "https://" + process.env.VERCEL_PROJECT_PRODUCTION_URL
+    : "http://localhost:3000");
+export const siteUrl = configuredSiteUrl.replace(/\/+$/, "");
 export const repoUrl = "https://github.com/BOTOOM/frame-notes";
 export const releasesUrl = repoUrl + "/releases/latest";
 export const issuesUrl = repoUrl + "/issues";
