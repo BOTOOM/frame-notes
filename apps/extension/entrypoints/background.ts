@@ -16,32 +16,23 @@ function isReadyResponse(value: unknown): boolean {
 }
 
 async function getOffscreenContextCount(): Promise<number> {
-  const chromeApi = Reflect.get(globalThis, "chrome");
-  const runtime = Reflect.get(chromeApi, "runtime");
-  const getContexts = Reflect.get(runtime, "getContexts");
-  if (typeof getContexts !== "function")
+  if (typeof browser.runtime.getContexts !== "function")
     return Promise.reject(new Error("getContexts unavailable"));
-  const contexts: unknown = await Reflect.apply(getContexts, runtime, [
-    {
-      contextTypes: ["OFFSCREEN_DOCUMENT"],
-      documentUrls: [browser.runtime.getURL("/offscreen.html")],
-    },
-  ]);
-  return Array.isArray(contexts) ? contexts.length : 0;
+  const contexts = await browser.runtime.getContexts({
+    contextTypes: ["OFFSCREEN_DOCUMENT"],
+    documentUrls: [browser.runtime.getURL("/offscreen.html")],
+  });
+  return contexts.length;
 }
 
 async function createOffscreenDocument(): Promise<void> {
-  const chromeApi = Reflect.get(globalThis, "chrome");
-  const offscreen = Reflect.get(chromeApi, "offscreen");
-  const createDocument = Reflect.get(offscreen, "createDocument");
-  if (typeof createDocument !== "function") throw new Error("offscreen API unavailable");
-  await Reflect.apply(createDocument, offscreen, [
-    {
-      url: "offscreen.html",
-      reasons: ["WORKERS"],
-      justification: "Run the local Whisper speech model",
-    },
-  ]);
+  if (typeof browser.offscreen?.createDocument !== "function")
+    throw new Error("offscreen API unavailable");
+  await browser.offscreen.createDocument({
+    url: "offscreen.html",
+    reasons: ["WORKERS"],
+    justification: "Run the local Whisper speech model",
+  });
 }
 
 async function pingOffscreenHost(): Promise<unknown> {
@@ -100,11 +91,9 @@ function registerChromeWhisperHostManager(): void {
           ensureRequests !== 0
         )
           return;
-        const chromeApi = Reflect.get(globalThis, "chrome");
-        const offscreen = Reflect.get(chromeApi, "offscreen");
-        const closeDocument = Reflect.get(offscreen, "closeDocument");
-        if (typeof closeDocument !== "function") throw new Error("offscreen API unavailable");
-        await Reflect.apply(closeDocument, offscreen, []);
+        if (typeof browser.offscreen?.closeDocument !== "function")
+          throw new Error("offscreen API unavailable");
+        await browser.offscreen.closeDocument();
         ready = false;
       })().finally(() => {
         closePromise = null;
