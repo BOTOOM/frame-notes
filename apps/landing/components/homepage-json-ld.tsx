@@ -1,5 +1,5 @@
 /* biome-ignore-all lint/security/noDangerouslySetInnerHtml: JSON-LD serialization escapes "<" to prevent script-tag injection. */
-import { legal, releasesUrl, repoUrl, siteUrl } from "../site.config";
+import { chromeWebStoreUrl, legal, releasesUrl, repoUrl, siteUrl } from "../site.config";
 import { type Locale, landingContent, seoMetadata } from "../src/content";
 
 export function HomepageJsonLd({ locale }: { locale: Locale }) {
@@ -26,9 +26,10 @@ export function HomepageJsonLd({ locale }: { locale: Locale }) {
           priceCurrency: "USD",
         },
         url: new URL(homePath, siteUrl).toString(),
+        installUrl: chromeWebStoreUrl,
         downloadUrl: releasesUrl,
         license: "https://www.apache.org/licenses/LICENSE-2.0",
-        sameAs: [repoUrl],
+        sameAs: [repoUrl, chromeWebStoreUrl],
         description: seoMetadata[locale].description,
         inLanguage: localeCode,
         ...(legal.owner ? { author: { "@type": "Person", name: legal.owner } } : {}),

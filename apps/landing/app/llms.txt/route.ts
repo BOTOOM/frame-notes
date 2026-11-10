@@ -1,4 +1,4 @@
-import { releasesUrl, repoUrl, siteUrl } from "../../site.config";
+import { chromeWebStoreUrl, releasesUrl, repoUrl, siteUrl } from "../../site.config";
 import { type Locale, landingContent, seoMetadata } from "../../src/content";
 import { legalContent } from "../../src/legal-content";
 
@@ -37,6 +37,7 @@ function contentText() {
     `- [Terms](${siteUrl}/en/terms)`,
     "",
     "## Links",
+    `- Chrome Web Store: ${chromeWebStoreUrl}`,
     `- [GitHub repository](${repoUrl})`,
     `- [GitHub Releases](${releasesUrl})`,
     "",
