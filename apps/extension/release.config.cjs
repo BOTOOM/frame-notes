@@ -1,3 +1,13 @@
+const nonExtensionScopes = ["landing", "readme"];
+const changelogTypes = [
+  { type: "feat", section: "Features" },
+  { type: "fix", section: "Bug Fixes" },
+  { type: "perf", section: "Performance" },
+  { type: "refactor", section: "Refactoring" },
+  { type: "docs", section: "Documentation" },
+  { type: "chore", section: "Maintenance" },
+];
+
 module.exports = {
   branches: ["main"],
   tagFormat: `v\${version}`,
@@ -12,9 +22,13 @@ module.exports = {
           { type: "perf", release: "patch" },
           { type: "refactor", release: "patch" },
           { type: "chore", scope: "deps", release: "patch" },
-          { scope: "landing", release: false },
-          { scope: "readme", release: false },
-          { breaking: true, release: "major" },
+          { breaking: true, scope: null, release: "major" },
+          {
+            breaking: true,
+            scope: `!(${nonExtensionScopes.join("|")})`,
+            release: "major",
+          },
+          ...nonExtensionScopes.map((scope) => ({ scope, release: false })),
         ],
       },
     ],
@@ -24,12 +38,10 @@ module.exports = {
         preset: "conventionalcommits",
         presetConfig: {
           types: [
-            { type: "feat", section: "Features" },
-            { type: "fix", section: "Bug Fixes" },
-            { type: "perf", section: "Performance" },
-            { type: "refactor", section: "Refactoring" },
-            { type: "docs", section: "Documentation" },
-            { type: "chore", section: "Maintenance" },
+            ...nonExtensionScopes.flatMap((scope) =>
+              changelogTypes.map(({ type }) => ({ type, scope, hidden: true })),
+            ),
+            ...changelogTypes,
           ],
         },
       },

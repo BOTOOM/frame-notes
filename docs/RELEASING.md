@@ -11,7 +11,7 @@ version manually.
 | `feat:` | Minor |
 | `fix:`, `perf:`, `refactor:`, `chore(deps):` | Patch |
 | Any commit with a `BREAKING CHANGE:` footer | Major |
-| Commits scoped `(landing)` or `(readme)`, and `docs:` | No release |
+| Commits scoped `(landing)` or `(readme)` (including breaking changes), and `docs:` | No release; excluded from extension release notes and CHANGELOG |
 
 A release is only cut for extension changes; the workflow `paths` filter and
 these release rules enforce it.
