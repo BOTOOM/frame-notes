@@ -11,6 +11,11 @@ version manually.
 | `feat:` | Minor |
 | `fix:`, `perf:`, `refactor:`, `chore(deps):` | Patch |
 | Any commit with a `BREAKING CHANGE:` footer | Major |
+| `docs:` | No release |
+| Commits scoped `(landing)` or `(readme)`, including breaking changes | No release; excluded from extension release notes and CHANGELOG |
+
+A release is only cut for extension changes; the workflow `paths` filter and
+these release rules enforce it.
 
 There are no release tags yet, so the first release will be `1.0.0`. The release
 workflow temporarily synchronizes that version into the extension package for

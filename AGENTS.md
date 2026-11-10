@@ -19,3 +19,4 @@
 - Use pnpm for workspace operations, TypeScript strict mode, and Biome.
 - Keep injected UI inside its Shadow DOM; read Studio DOM (detection, geometry) from the content script, and go through the player bridge for MAIN-world player state and commands.
 - Keep persisted notes in seconds and mirror project files with conditional writes.
+- Releases are only for extension changes: scope landing-only commits `(landing)` and README commits `docs(readme)`; these scopes never trigger a version bump.

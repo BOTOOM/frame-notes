@@ -24,6 +24,11 @@ export interface FaqItem {
   answer: string;
 }
 
+export interface InstallStep {
+  text: string;
+  link?: "chromeWebStore" | "releases";
+}
+
 export interface LandingContent {
   nav: {
     audience: string;
@@ -39,6 +44,8 @@ export interface LandingContent {
     description: string;
     primaryCta: string;
     secondaryCta: string;
+    browserAvailability: string;
+    repositoryLink: string;
     localNote: string;
     mediaCaption: string;
   };
@@ -75,9 +82,9 @@ export interface LandingContent {
     eyebrow: string;
     title: string;
     chromeTitle: string;
-    chromeSteps: string[];
+    chromeSteps: InstallStep[];
     firefoxTitle: string;
-    firefoxSteps: string[];
+    firefoxSteps: InstallStep[];
   };
   howToUse: {
     eyebrow: string;
@@ -118,8 +125,10 @@ export const landingContent: Record<Locale, LandingContent> = {
       title: "Revisa cada cuadro, justo en la línea de tiempo.",
       description:
         "Marca un instante o un rango, anota lo que hay que cambiar y comparte contexto preciso con tu agente de IA. Frame Notes mantiene cada nota junto al proyecto local.",
-      primaryCta: "Descargar extensión",
-      secondaryCta: "Ver en GitHub",
+      primaryCta: "Añadir a Chrome",
+      secondaryCta: "Descargar para Firefox",
+      browserAvailability: "Disponible para Chrome y Firefox",
+      repositoryLink: "Ver en GitHub",
       localNote: "Sin cuenta. Sin nube. En tu dispositivo.",
       mediaCaption: "Una nota de 0,2 s a las 12:00, visible en la línea de tiempo.",
     },
@@ -209,15 +218,21 @@ export const landingContent: Record<Locale, LandingContent> = {
       title: "Descarga la extensión y cárgala en tu navegador.",
       chromeTitle: "Chrome, Edge o Brave",
       chromeSteps: [
-        "Descarga el ZIP más reciente desde GitHub Releases y descomprímelo.",
-        "Abre chrome://extensions y activa el modo de desarrollador.",
-        "Elige «Load unpacked» y selecciona la carpeta descomprimida.",
+        { text: "Instala desde Chrome Web Store.", link: "chromeWebStore" },
+        {
+          text: "Como alternativa, descarga el ZIP más reciente desde GitHub Releases y descomprímelo.",
+          link: "releases",
+        },
+        { text: "Abre chrome://extensions y activa el modo de desarrollador." },
+        { text: "Elige «Load unpacked» y selecciona la carpeta descomprimida." },
       ],
       firefoxTitle: "Firefox",
       firefoxSteps: [
-        "Descarga el archivo XPI desde GitHub Releases.",
-        "Abre about:debugging#/runtime/this-firefox y elige «Load Temporary Add-on».",
-        "Selecciona el XPI. Una compilación sin firma es temporal hasta que esté en AMO.",
+        { text: "Descarga el archivo XPI desde GitHub Releases.", link: "releases" },
+        {
+          text: "Abre about:debugging#/runtime/this-firefox y elige «Load Temporary Add-on».",
+        },
+        { text: "Selecciona el XPI. Una compilación sin firma es temporal hasta que esté en AMO." },
       ],
     },
     howToUse: {
@@ -301,8 +316,10 @@ export const landingContent: Record<Locale, LandingContent> = {
       title: "Review every frame, right on the timeline.",
       description:
         "Mark a moment or range, write what needs to change, and give your AI agent frame-accurate context. Frame Notes keeps each note beside the local project.",
-      primaryCta: "Download the extension",
-      secondaryCta: "View on GitHub",
+      primaryCta: "Add to Chrome",
+      secondaryCta: "Download for Firefox",
+      browserAvailability: "Available for Chrome and Firefox",
+      repositoryLink: "View on GitHub",
       localNote: "No account. No cloud. On your device.",
       mediaCaption: "A 0.2 s note at 12:00, visible on the timeline.",
     },
@@ -392,15 +409,23 @@ export const landingContent: Record<Locale, LandingContent> = {
       title: "Download the extension and load it in your browser.",
       chromeTitle: "Chrome, Edge, or Brave",
       chromeSteps: [
-        "Download the latest ZIP from GitHub Releases and unzip it.",
-        "Open chrome://extensions and enable Developer mode.",
-        "Choose “Load unpacked” and select the unzipped folder.",
+        { text: "Install from the Chrome Web Store.", link: "chromeWebStore" },
+        {
+          text: "Alternatively, download the latest ZIP from GitHub Releases and unzip it.",
+          link: "releases",
+        },
+        { text: "Open chrome://extensions and enable Developer mode." },
+        { text: "Choose “Load unpacked” and select the unzipped folder." },
       ],
       firefoxTitle: "Firefox",
       firefoxSteps: [
-        "Download the XPI from GitHub Releases.",
-        "Open about:debugging#/runtime/this-firefox and choose “Load Temporary Add-on”.",
-        "Select the XPI. An unsigned build is temporary until an AMO listing is available.",
+        { text: "Download the XPI from GitHub Releases.", link: "releases" },
+        {
+          text: "Open about:debugging#/runtime/this-firefox and choose “Load Temporary Add-on”.",
+        },
+        {
+          text: "Select the XPI. An unsigned build is temporary until an AMO listing is available.",
+        },
       ],
     },
     howToUse: {

@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { releasesUrl, repoUrl } from "../site.config";
+import { chromeWebStoreUrl, releasesUrl, repoUrl } from "../site.config";
 import { copyExample, type Locale, landingContent } from "../src/content";
 import { HomepageJsonLd } from "./homepage-json-ld";
 
@@ -23,19 +23,25 @@ export function LandingPage({ locale }: LandingPageProps) {
           <h1>{copy.hero.title}</h1>
           <p className="hero-description">{copy.hero.description}</p>
           <div className="hero-actions">
-            <a className="button button-primary" href={releasesUrl}>
+            <a className="button button-primary" href={chromeWebStoreUrl}>
               {copy.hero.primaryCta}
               <span aria-hidden="true">↗</span>
             </a>
-            <a className="button button-ghost" href={repoUrl}>
+            <a className="button button-ghost" href={releasesUrl}>
               {copy.hero.secondaryCta}
               <span aria-hidden="true">↗</span>
             </a>
           </div>
           <p className="local-note">
             <span aria-hidden="true" className="local-dot" />
-            {copy.hero.localNote}
+            <span>
+              <strong className="browser-availability">{copy.hero.browserAvailability}</strong> ·{" "}
+              {copy.hero.localNote}
+            </span>
           </p>
+          <a className="inline-link" href={repoUrl}>
+            {copy.hero.repositoryLink} <span>↗</span>
+          </a>
         </div>
         <figure className="hero-media">
           <div className="media-window">
@@ -122,7 +128,15 @@ export function LandingPage({ locale }: LandingPageProps) {
             <h3>{copy.install.chromeTitle}</h3>
             <ol>
               {copy.install.chromeSteps.map((step) => (
-                <li key={step}>{step}</li>
+                <li key={step.text}>
+                  {step.link ? (
+                    <a href={step.link === "chromeWebStore" ? chromeWebStoreUrl : releasesUrl}>
+                      {step.text}
+                    </a>
+                  ) : (
+                    step.text
+                  )}
+                </li>
               ))}
             </ol>
           </article>
@@ -131,7 +145,9 @@ export function LandingPage({ locale }: LandingPageProps) {
             <h3>{copy.install.firefoxTitle}</h3>
             <ol>
               {copy.install.firefoxSteps.map((step) => (
-                <li key={step}>{step}</li>
+                <li key={step.text}>
+                  {step.link ? <a href={releasesUrl}>{step.text}</a> : step.text}
+                </li>
               ))}
             </ol>
           </article>

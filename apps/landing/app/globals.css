@@ -327,6 +327,11 @@ input {
   background: var(--fn-accent);
 }
 
+.browser-availability {
+  color: var(--fn-accent-text);
+  font-weight: 700;
+}
+
 .hero-media {
   position: relative;
   z-index: 1;
@@ -553,6 +558,13 @@ input {
   color: var(--fn-accent-text);
   font-family: var(--fn-mono);
   font-size: 11px;
+}
+
+.install-card a {
+  color: var(--fn-accent-text);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .inline-link {
