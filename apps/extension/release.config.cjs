@@ -12,6 +12,8 @@ module.exports = {
           { type: "perf", release: "patch" },
           { type: "refactor", release: "patch" },
           { type: "chore", scope: "deps", release: "patch" },
+          { scope: "landing", release: false },
+          { scope: "readme", release: false },
           { breaking: true, release: "major" },
         ],
       },
