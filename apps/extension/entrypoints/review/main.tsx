@@ -272,7 +272,14 @@ function ReviewPage() {
     );
     sessionRef.current = nextSession;
     setSession(nextSession);
-    void nextSession.load();
+    void nextSession.load().then(() => {
+      if (generation !== loadGenerationRef.current || manualFpsRef.current !== null) return;
+      const savedFps = nextSession.getDocumentSnapshot().fps;
+      if (!Number.isFinite(savedFps) || savedFps <= 0) return;
+      setAutoFps(savedFps);
+      fpsRef.current = savedFps;
+      adapterRef.current?.refresh();
+    });
     void storage
       .getItem<unknown>(storageKey)
       .then((saved) => {

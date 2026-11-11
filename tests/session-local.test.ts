@@ -62,4 +62,48 @@ describe("NoteSession local video mode", () => {
     expect(session.getSyncStatusSnapshot()).toBe("saved");
     session.dispose();
   });
+
+  it("keeps the stored frame rate when player state arrives before local loading finishes", async () => {
+    const fileName = "screen.mp4";
+    const storedNote = {
+      id: "stored",
+      start: 1,
+      end: 2,
+      text: "Keep this range",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    const storedDoc = {
+      ...emptyNotesDoc(fileName),
+      fps: 25,
+      notes: [storedNote],
+    };
+    let resolveStorageRead: (value: unknown) => void = () => undefined;
+    mockedStorage.getItem.mockImplementation(
+      () =>
+        new Promise<unknown>((resolve) => {
+          resolveStorageRead = resolve;
+        }),
+    );
+
+    const session = new NoteSession(fileName, "local-video:100:1700000000000", () => undefined, "en", {
+      projectFiles: false,
+      storage: mockedStorage as unknown as NoteSessionOptions["storage"],
+    });
+    const load = session.load();
+    session.setPlayerState({
+      currentTime: 0,
+      duration: 10,
+      paused: true,
+      fps: 30,
+      loopingRange: null,
+    });
+    resolveStorageRead(storedDoc);
+    await load;
+
+    expect(session.getDocumentSnapshot()).toEqual(storedDoc);
+    expect(session.getDocumentSnapshot().fps).toBe(25);
+    expect(session.getDocumentSnapshot().notes).toEqual([storedNote]);
+    session.dispose();
+  });
 });

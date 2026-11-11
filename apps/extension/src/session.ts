@@ -214,6 +214,10 @@ export class NoteSession {
   }
 
   setPlayerState(player: PlayerState): void {
+    if (!this.projectFiles && !this.loaded && player.fps !== this.state.doc.fps) {
+      this.publish({ ...player });
+      return;
+    }
     this.hasPlayerState = true;
     const fpsChanged = player.fps !== this.state.doc.fps;
     if (!fpsChanged) {
