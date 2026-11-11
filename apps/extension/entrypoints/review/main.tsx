@@ -336,7 +336,9 @@ function ReviewPage() {
   const exportNotes = (extension: ReviewExportExtension) => {
     if (!file) return;
     const content =
-      extension === "md" ? notesMarkdown(sessionState.doc, locale) : notesJson(sessionState.doc);
+      extension === "md"
+        ? notesMarkdown(sessionState.doc, locale, { timeBase: "video" })
+        : notesJson(sessionState.doc);
     const mimeType = extension === "md" ? "text/markdown" : "application/json";
     downloadText(reviewExportName(file.name, extension), content, mimeType);
   };

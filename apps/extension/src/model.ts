@@ -130,11 +130,23 @@ export function copyText(doc: NotesDoc, locale: Locale): string {
   return [title, ...entries].join("\n");
 }
 
-export function notesMarkdown(doc: NotesDoc, locale: Locale): string {
+export function notesMarkdown(
+  doc: NotesDoc,
+  locale: Locale,
+  options: { timeBase?: "composition" | "video" } = {},
+): string {
+  const timing =
+    options.timeBase === "video"
+      ? locale === "es"
+        ? `Los tiempos son tiempo del video; los fotogramas usan ${fpsLabel(doc.fps)} fps.`
+        : `Times are video time; frames use ${fpsLabel(doc.fps)} fps.`
+      : locale === "es"
+        ? `Los tiempos son tiempo de composición; los fotogramas usan ${fpsLabel(doc.fps)} fps.`
+        : `Times are composition time; frames use ${fpsLabel(doc.fps)} fps.`;
   const intro =
     locale === "es"
-      ? `# Notas de revisión — ${doc.project}\n\nProducido por Frame Notes. Los tiempos son tiempo de composición; los fotogramas usan ${fpsLabel(doc.fps)} fps.\n\nPara agentes: lee estas notas antes de editar y usa cada rango como objetivo de revisión.`
-      : `# Review notes — ${doc.project}\n\nProduced by Frame Notes. Times are composition time; frames use ${fpsLabel(doc.fps)} fps.\n\nFor agents: read these notes before editing and use each range as a review target.`;
+      ? `# Notas de revisión — ${doc.project}\n\nProducido por Frame Notes. ${timing}\n\nPara agentes: lee estas notas antes de editar y usa cada rango como objetivo de revisión.`
+      : `# Review notes — ${doc.project}\n\nProduced by Frame Notes. ${timing}\n\nFor agents: read these notes before editing and use each range as a review target.`;
   return `${intro}\n\n${copyText(doc, locale)}\n`;
 }
 
