@@ -106,4 +106,69 @@ describe("NoteSession local video mode", () => {
     expect(session.getDocumentSnapshot().notes).toEqual([storedNote]);
     session.dispose();
   });
+
+  it("merges notes added before local storage loading finishes", async () => {
+    vi.useFakeTimers();
+    const fileName = "screen.mp4";
+    const storedNotes = [
+      {
+        id: "stored-1",
+        start: 1,
+        end: 2,
+        text: "Keep this range",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        id: "stored-2",
+        start: 4,
+        end: 5,
+        text: "Keep this too",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ];
+    const storedDoc = {
+      ...emptyNotesDoc(fileName),
+      notes: storedNotes,
+    };
+    let resolveStorageRead: (value: unknown) => void = () => undefined;
+    mockedStorage.getItem.mockImplementation(
+      () =>
+        new Promise<unknown>((resolve) => {
+          resolveStorageRead = resolve;
+        }),
+    );
+
+    const session = new NoteSession(fileName, "local-video:100:1700000000000", () => undefined, "en", {
+      projectFiles: false,
+      storage: mockedStorage as unknown as NoteSessionOptions["storage"],
+    });
+    const load = session.load();
+    const addedNote = {
+      id: "new",
+      start: 8,
+      end: 9,
+      text: "Add this range",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    session.updateNotes([addedNote]);
+    resolveStorageRead(storedDoc);
+    await load;
+
+    expect(session.getDocumentSnapshot().notes.map(({ id }) => id)).toEqual([
+      "stored-1",
+      "stored-2",
+      "new",
+    ]);
+    await vi.advanceTimersByTimeAsync(800);
+    await session.setLocale("en");
+    const savedDoc = mockedStorage.setItem.mock.calls.at(-1)?.[1] as
+      | ReturnType<typeof emptyNotesDoc>
+      | undefined;
+    expect(savedDoc?.notes).toHaveLength(3);
+    expect(savedDoc?.notes.map(({ id }) => id)).toEqual(["stored-1", "stored-2", "new"]);
+    session.dispose();
+  });
 });

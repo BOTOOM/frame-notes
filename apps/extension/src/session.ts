@@ -154,7 +154,10 @@ export class NoteSession {
         this.publish({ syncStatus: "error" });
         return;
       }
-      if (!this.hasLocalChanges && local) this.publish({ doc: local });
+      const selected = this.hasLocalChanges
+        ? mergeNotes(this.state.doc, local, this.deletedIds)
+        : local;
+      if (selected && selected !== this.state.doc) this.publish({ doc: selected });
       this.loaded = true;
       if (this.pendingWrite) {
         this.pendingWrite = false;
