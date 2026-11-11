@@ -317,7 +317,7 @@ function ReviewPage() {
     adapterRef.current?.refresh();
     const key = fpsStorageKeyRef.current;
     if (!key) return;
-    if (next === null) void browser.storage.local.remove(key).catch(() => undefined);
+    if (next === null) void storage.removeItem(key).catch(() => undefined);
     else void storage.setItem(key, next).catch(() => undefined);
   };
 
