@@ -3,8 +3,8 @@ import { emptyNotesDoc } from "../apps/extension/src/model";
 import { NoteSession, type NoteSessionOptions } from "../apps/extension/src/session";
 
 const mockedStorage = vi.hoisted(() => ({
-  getItem: vi.fn(async () => null as unknown),
-  setItem: vi.fn(async () => undefined),
+  getItem: vi.fn(async (_key: string) => null as unknown),
+  setItem: vi.fn(async (_key: string, _value: unknown) => undefined),
 }));
 
 beforeEach(() => {
@@ -86,10 +86,16 @@ describe("NoteSession local video mode", () => {
         }),
     );
 
-    const session = new NoteSession(fileName, "local-video:100:1700000000000", () => undefined, "en", {
-      projectFiles: false,
-      storage: mockedStorage as unknown as NoteSessionOptions["storage"],
-    });
+    const session = new NoteSession(
+      fileName,
+      "local-video:100:1700000000000",
+      () => undefined,
+      "en",
+      {
+        projectFiles: false,
+        storage: mockedStorage as unknown as NoteSessionOptions["storage"],
+      },
+    );
     const load = session.load();
     session.setPlayerState({
       currentTime: 0,
@@ -140,10 +146,16 @@ describe("NoteSession local video mode", () => {
         }),
     );
 
-    const session = new NoteSession(fileName, "local-video:100:1700000000000", () => undefined, "en", {
-      projectFiles: false,
-      storage: mockedStorage as unknown as NoteSessionOptions["storage"],
-    });
+    const session = new NoteSession(
+      fileName,
+      "local-video:100:1700000000000",
+      () => undefined,
+      "en",
+      {
+        projectFiles: false,
+        storage: mockedStorage as unknown as NoteSessionOptions["storage"],
+      },
+    );
     const load = session.load();
     const addedNote = {
       id: "new",

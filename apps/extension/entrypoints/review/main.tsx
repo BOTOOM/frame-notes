@@ -31,10 +31,7 @@ import { estimateFps, REVIEW_FRAME_RATES } from "../../src/review/fps";
 import { ReviewTimeline } from "../../src/review/review-timeline";
 import { createVideoPlayerAdapter, type VideoPlayerAdapter } from "../../src/review/video-player";
 import { NoteSession, type SessionState } from "../../src/session";
-import {
-  handlePanelKeyboardEvent,
-  isInteractiveShortcutTarget,
-} from "../../src/shortcuts";
+import { handlePanelKeyboardEvent, isInteractiveShortcutTarget } from "../../src/shortcuts";
 import { nudgeFrames } from "../../src/timeline-math";
 import { useLocale } from "../../src/use-locale";
 

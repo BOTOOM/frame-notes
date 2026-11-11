@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isInteractiveShortcutTarget } from "../apps/extension/src/shortcuts";
+import { isInteractiveShortcutTarget } from "../apps/extension/src/review/shortcut-target";
 
 describe("review keyboard shortcut targets", () => {
   it("reserves Space for native and ARIA interactive elements", () => {
