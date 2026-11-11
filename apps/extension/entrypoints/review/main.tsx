@@ -31,7 +31,10 @@ import { estimateFps, REVIEW_FRAME_RATES } from "../../src/review/fps";
 import { ReviewTimeline } from "../../src/review/review-timeline";
 import { createVideoPlayerAdapter, type VideoPlayerAdapter } from "../../src/review/video-player";
 import { NoteSession, type SessionState } from "../../src/session";
-import { handlePanelKeyboardEvent } from "../../src/shortcuts";
+import {
+  handlePanelKeyboardEvent,
+  isInteractiveShortcutTarget,
+} from "../../src/shortcuts";
 import { nudgeFrames } from "../../src/timeline-math";
 import { useLocale } from "../../src/use-locale";
 
@@ -350,9 +353,18 @@ function ReviewPage() {
       ) {
         return;
       }
-      const target = event.composedPath()[0];
+      const path = event.composedPath();
+      const target = path[0];
+      const interactiveSpaceTarget =
+        event.code === "Space" &&
+        path.some(
+          (entry) =>
+            entry instanceof HTMLElement &&
+            isInteractiveShortcutTarget(entry.tagName, entry.getAttribute("role")),
+        );
       if (
         isEditableTarget(target) ||
+        interactiveSpaceTarget ||
         document.querySelector('[role="dialog"], [aria-modal="true"]') ||
         panelHostRef.current?.shadowRoot?.querySelector('[role="dialog"], [aria-modal="true"]')
       ) {
