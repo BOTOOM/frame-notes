@@ -50,8 +50,9 @@ export function createVideoPlayerAdapter(
   const publish = () => {
     if (disposed) return;
     checkLoop();
+    const currentTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
     session.setPlayerState({
-      currentTime: Number.isFinite(video.currentTime) ? video.currentTime : 0,
+      currentTime: video.paused ? snap(currentTime) : currentTime,
       duration: Number.isFinite(video.duration) ? video.duration : 0,
       paused: video.paused,
       fps: getFps(),
@@ -121,6 +122,10 @@ export function createVideoPlayerAdapter(
   };
   const handlePause = () => {
     stopFrameCallbacks();
+    if (!video.seeking && !loopingRange && Number.isFinite(video.currentTime)) {
+      const snappedTime = snap(video.currentTime);
+      if (snappedTime !== video.currentTime) video.currentTime = snappedTime;
+    }
     schedulePublish();
   };
   const handleTimeUpdate = () => {
