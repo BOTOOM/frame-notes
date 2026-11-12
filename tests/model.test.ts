@@ -111,6 +111,22 @@ describe("notes documents", () => {
     expect(JSON.parse(notesJson(doc))).toMatchObject({ schemaVersion: 1, project: "demo" });
   });
 
+  it("labels the Markdown time base without changing the composition default", () => {
+    const doc = emptyNotesDoc("demo");
+    expect(notesMarkdown(doc, "en")).toContain(
+      "Produced by Frame Notes. Times are composition time; frames use 30 fps.",
+    );
+    expect(notesMarkdown(doc, "es")).toContain(
+      "Producido por Frame Notes. Los tiempos son tiempo de composición; los fotogramas usan 30 fps.",
+    );
+    expect(notesMarkdown(doc, "en", { timeBase: "video" })).toContain(
+      "Produced by Frame Notes. Times are video time; frames use 30 fps.",
+    );
+    expect(notesMarkdown(doc, "es", { timeBase: "video" })).toContain(
+      "Producido por Frame Notes. Los tiempos son tiempo del video; los fotogramas usan 30 fps.",
+    );
+  });
+
   it("prefers the newer file and otherwise keeps newer local notes", () => {
     const local = {
       ...emptyNotesDoc("demo"),

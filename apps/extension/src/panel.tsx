@@ -91,6 +91,7 @@ interface NotePanelProps {
   actionRef: PanelActionRef;
   storageKey: `local:${string}`;
   speechBridge: SpeechBridge;
+  notesTarget?: "project" | "download";
 }
 
 interface EditFields {
@@ -165,6 +166,7 @@ export function NotePanel({
   actionRef,
   storageKey,
   speechBridge,
+  notesTarget = "project",
 }: NotePanelProps) {
   const doc = useSyncExternalStore(
     session.subscribeDocument,
@@ -793,12 +795,19 @@ export function NotePanel({
   const syncLabel =
     syncStatus === "loading" || syncStatus === "syncing"
       ? t("saving", locale)
-      : syncStatus === "local"
-        ? t("localOnly", locale)
-        : syncStatus === "error"
-          ? t("syncError", locale)
-          : t("synced", locale);
-  const syncTitle = syncStatus === "synced" ? t("syncedTitle", locale) : syncLabel;
+      : syncStatus === "saved"
+        ? t("savedInBrowser", locale)
+        : syncStatus === "local"
+          ? t("localOnly", locale)
+          : syncStatus === "error"
+            ? t("syncError", locale)
+            : t("synced", locale);
+  const syncTitle =
+    syncStatus === "synced"
+      ? t("syncedTitle", locale)
+      : syncStatus === "saved"
+        ? t("savedInBrowser", locale)
+        : syncLabel;
   const resizeValues = getListResizeValues();
 
   return (
@@ -1193,7 +1202,10 @@ export function NotePanel({
             >
               <strong id="fn-delete-all-title">{t("deleteAll", locale)}</strong>
               <p id="fn-delete-all-description">
-                {t("deleteAllPrompt", locale).replace("{count}", String(doc.notes.length))}
+                {t(
+                  notesTarget === "download" ? "deleteAllPromptLocal" : "deleteAllPrompt",
+                  locale,
+                ).replace("{count}", String(doc.notes.length))}
               </p>
               <div>
                 <button

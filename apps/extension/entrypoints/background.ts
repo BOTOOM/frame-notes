@@ -164,12 +164,24 @@ export default defineBackground(() => {
     if (!action) return;
     const [tab] = await browser.tabs.query({ active: true, lastFocusedWindow: true });
     if (tab?.id === undefined) return;
+    const message = { namespace, type: "shortcut", action };
+    if (tab.url?.startsWith(browser.runtime.getURL("/review.html"))) {
+      try {
+        await browser.runtime.sendMessage({ ...message, tabId: tab.id });
+      } catch {
+        // The review page may have closed before handling the command.
+      }
+      return;
+    }
+    if (tab.url === undefined) {
+      try {
+        await browser.runtime.sendMessage({ ...message, tabId: tab.id });
+      } catch {
+        // Try the Studio content-script path below.
+      }
+    }
     try {
-      await browser.tabs.sendMessage(tab.id, {
-        namespace,
-        type: "shortcut",
-        action,
-      });
+      await browser.tabs.sendMessage(tab.id, message);
     } catch {
       // Commands are only actionable in a Studio tab with the content script loaded.
     }

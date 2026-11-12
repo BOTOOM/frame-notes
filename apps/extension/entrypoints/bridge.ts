@@ -1,10 +1,5 @@
+import { createSpeechCommandHandler } from "../src/dictation/local-speech";
 import type { SpeechBridgeEvent, SpeechBridgeRequest } from "../src/dictation/protocol";
-import {
-  checkSpeechLanguages,
-  findSpeechRecognitionApi,
-  type SpeechRecognitionInstance,
-  startLocalRecognition,
-} from "../src/dictation/speech";
 import { parseFps } from "../src/model";
 
 interface PlayerElement extends HTMLElement {
@@ -53,8 +48,6 @@ export default defineUnlistedScript(() => {
   let studioLoopActive = false;
   let studioLoopEnabledByExtension = false;
   let loopSeekInProgress = false;
-  const speechApi = findSpeechRecognitionApi(window);
-  let speechRecognition: SpeechRecognitionInstance | null = null;
   let speechSessionId: string | null = null;
   let disposed = false;
 
@@ -89,96 +82,7 @@ export default defineUnlistedScript(() => {
     if (disposed) return;
     window.postMessage({ namespace, kind: "speech-event", nonce, speechEvent }, location.origin);
   };
-
-  const handleSpeechCommand = async (request: SpeechBridgeRequest) => {
-    if (request.type === "probe") {
-      if (!speechApi) {
-        sendSpeechEvent({
-          type: "probe-result",
-          requestId: request.requestId,
-          supported: false,
-          availabilities: [],
-        });
-        return;
-      }
-      const availabilities = await checkSpeechLanguages(speechApi, request.languages);
-      sendSpeechEvent({
-        type: "probe-result",
-        requestId: request.requestId,
-        supported: true,
-        availabilities,
-      });
-      return;
-    }
-    if (request.type === "install") {
-      if (!speechApi) {
-        sendSpeechEvent({
-          type: "install-result",
-          requestId: request.requestId,
-          language: request.language,
-          installed: false,
-        });
-        return;
-      }
-      const install = speechApi.install({ langs: [request.language], processLocally: true });
-      void install.then(
-        (installed) =>
-          sendSpeechEvent({
-            type: "install-result",
-            requestId: request.requestId,
-            language: request.language,
-            installed,
-          }),
-        () =>
-          sendSpeechEvent({
-            type: "install-result",
-            requestId: request.requestId,
-            language: request.language,
-            installed: false,
-          }),
-      );
-      return;
-    }
-    if (!speechApi) {
-      sendSpeechEvent({ type: "error", sessionId: request.sessionId, code: "unsupported" });
-      return;
-    }
-    if (request.type === "start") {
-      speechRecognition?.abort();
-      speechSessionId = request.sessionId;
-      try {
-        speechRecognition = startLocalRecognition(speechApi, request.language, {
-          onResult: (transcript, final) =>
-            sendSpeechEvent({ type: "result", sessionId: request.sessionId, transcript, final }),
-          onError: (code) => sendSpeechEvent({ type: "error", sessionId: request.sessionId, code }),
-          onEnd: () => {
-            if (speechSessionId !== request.sessionId) return;
-            speechRecognition = null;
-            speechSessionId = null;
-            sendSpeechEvent({ type: "ended", sessionId: request.sessionId });
-          },
-        });
-        sendSpeechEvent({
-          type: "started",
-          sessionId: request.sessionId,
-          language: request.language,
-        });
-      } catch {
-        speechRecognition = null;
-        speechSessionId = null;
-        sendSpeechEvent({ type: "error", sessionId: request.sessionId, code: "start-failed" });
-      }
-      return;
-    }
-    if (speechSessionId !== request.sessionId) return;
-    if (request.type === "stop") speechRecognition?.stop();
-    else {
-      speechRecognition?.abort();
-      speechRecognition = null;
-      speechSessionId = null;
-      sendSpeechEvent({ type: "ended", sessionId: request.sessionId });
-    }
-  };
+  const handleSpeechCommand = createSpeechCommandHandler(window, sendSpeechEvent);
 
   const dispatchStudioShortcut = (key: string, code: string, shiftKey = false): boolean => {
     if (!document.body) return false;
@@ -458,8 +362,10 @@ export default defineUnlistedScript(() => {
     window.removeEventListener("message", handleMessage);
     documentObserver.disconnect();
     if (animationFrame) window.cancelAnimationFrame(animationFrame);
-    speechRecognition?.abort();
-    speechRecognition = null;
+    if (speechSessionId) {
+      void handleSpeechCommand({ type: "cancel", sessionId: speechSessionId });
+      speechSessionId = null;
+    }
     speechSessionId = null;
     detachPlayer();
   };
@@ -475,6 +381,14 @@ export default defineUnlistedScript(() => {
     }
     if (event.data.kind !== "command") return;
     if (event.data.command === "speech" && event.data.speechCommand) {
+      if (event.data.speechCommand.type === "start") {
+        speechSessionId = event.data.speechCommand.sessionId;
+      } else if (
+        event.data.speechCommand.type === "cancel" &&
+        speechSessionId === event.data.speechCommand.sessionId
+      ) {
+        speechSessionId = null;
+      }
       void handleSpeechCommand(event.data.speechCommand);
     } else if (event.data.command === "getState") {
       sendState();

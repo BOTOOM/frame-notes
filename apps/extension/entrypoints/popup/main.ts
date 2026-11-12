@@ -1,4 +1,4 @@
-import { Copy, createElement } from "lucide";
+import { Copy, createElement, Film } from "lucide";
 import { createBrandGlyphSvg } from "../../src/brand-glyph";
 import {
   dictationEngineStorageName,
@@ -70,6 +70,24 @@ async function openPopup(): Promise<void> {
   summary.className = status.detected ? "detected" : "unsupported";
   summary.textContent = status.detected ? t("detected", locale) : t("unsupported", locale);
   root.append(summary);
+
+  const reviewVideo = button(t("reviewOpenVideo", locale), false, () => {
+    void browser.tabs
+      .create({ url: browser.runtime.getURL("/review.html") })
+      .then(() => window.close())
+      .catch(() => undefined);
+  });
+  reviewVideo.className = "copy-all";
+  reviewVideo.prepend(
+    createElement(Film, {
+      width: 14,
+      height: 14,
+      strokeWidth: 2,
+      "aria-hidden": "true",
+      focusable: "false",
+    }),
+  );
+  root.append(reviewVideo);
 
   if (status.detected) {
     const count = document.createElement("p");

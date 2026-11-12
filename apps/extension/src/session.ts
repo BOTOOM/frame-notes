@@ -8,7 +8,7 @@ import {
 } from "./file-sync";
 import { emptyNotesDoc, type Locale, type NotesDoc, sortNotes } from "./model";
 
-export type SyncStatus = "loading" | "syncing" | "synced" | "local" | "error";
+export type SyncStatus = "loading" | "syncing" | "synced" | "saved" | "local" | "error";
 
 export interface LoopingRange {
   id: string;
@@ -32,6 +32,11 @@ export interface SessionState extends PlayerState {
 export type PlayerCommand = "seek" | "pause" | "loop" | "stopLoop";
 export type PlayerCommandValue = number | LoopingRange;
 
+export interface NoteSessionOptions {
+  projectFiles?: boolean;
+  storage?: Pick<typeof storage, "getItem" | "setItem">;
+}
+
 const emptyPlayerState: PlayerState = {
   currentTime: 0,
   duration: 0,
@@ -44,6 +49,8 @@ export class NoteSession {
   readonly project: string;
   readonly storageKey: `local:${string}`;
   private readonly commandPlayer: (command: PlayerCommand, value?: PlayerCommandValue) => void;
+  private readonly projectFiles: boolean;
+  private readonly storage: Pick<typeof storage, "getItem" | "setItem">;
   private locale: Locale;
   private readonly listeners = new Set<() => void>();
   private readonly documentListeners = new Set<() => void>();
@@ -68,10 +75,13 @@ export class NoteSession {
     origin: string,
     commandPlayer: (command: PlayerCommand, value?: PlayerCommandValue) => void,
     locale: Locale = "en",
+    options: NoteSessionOptions = {},
   ) {
     this.project = project;
     this.storageKey = `local:frame-notes:${encodeURIComponent(origin)}:${encodeURIComponent(project)}`;
     this.commandPlayer = commandPlayer;
+    this.projectFiles = options.projectFiles ?? true;
+    this.storage = options.storage ?? storage;
     this.locale = locale;
     this.state = {
       ...emptyPlayerState,
@@ -135,11 +145,34 @@ export class NoteSession {
   };
 
   async load(): Promise<void> {
+    if (!this.projectFiles) {
+      let local: NotesDoc | null = null;
+      try {
+        local = await this.storage.getItem<NotesDoc>(this.storageKey);
+      } catch {
+        this.loaded = true;
+        this.publish({ syncStatus: "error" });
+        return;
+      }
+      const selected = this.hasLocalChanges
+        ? mergeNotes(this.state.doc, local, this.deletedIds)
+        : local;
+      if (selected && selected !== this.state.doc) this.publish({ doc: selected });
+      this.loaded = true;
+      if (this.pendingWrite) {
+        this.pendingWrite = false;
+        await this.queueWrite(this.state.doc);
+      } else {
+        this.publish({ syncStatus: "saved" });
+      }
+      return;
+    }
+
     let local: NotesDoc | null = null;
     let remoteAvailable = false;
     let shouldWrite = false;
     try {
-      local = await storage.getItem<NotesDoc>(this.storageKey);
+      local = await this.storage.getItem<NotesDoc>(this.storageKey);
     } catch {
       this.publish({ syncStatus: "local" });
     }
@@ -184,6 +217,10 @@ export class NoteSession {
   }
 
   setPlayerState(player: PlayerState): void {
+    if (!this.projectFiles && !this.loaded && player.fps !== this.state.doc.fps) {
+      this.publish({ ...player });
+      return;
+    }
     this.hasPlayerState = true;
     const fpsChanged = player.fps !== this.state.doc.fps;
     if (!fpsChanged) {
@@ -199,6 +236,14 @@ export class NoteSession {
     if (this.disposed || locale === this.locale) return this.writeQueue;
     this.locale = locale;
     if (this.debounceTimer !== null || this.pendingWrite || this.pendingProjectWrites > 0) {
+      return this.writeQueue;
+    }
+    if (!this.projectFiles) {
+      if (this.hasLocalChanges) {
+        this.publish({ syncStatus: "syncing" });
+        return this.queueWrite(this.state.doc);
+      }
+      this.publish({ syncStatus: "saved" });
       return this.writeQueue;
     }
     this.publish({ syncStatus: "syncing" });
@@ -263,11 +308,13 @@ export class NoteSession {
     }
   }
 
-  private async storeLocal(doc: NotesDoc): Promise<void> {
+  private async storeLocal(doc: NotesDoc): Promise<boolean> {
     try {
-      await storage.setItem(this.storageKey, doc);
+      await this.storage.setItem(this.storageKey, doc);
+      return true;
     } catch {
       this.publish({ syncStatus: "local" });
+      return false;
     }
   }
 
@@ -290,6 +337,13 @@ export class NoteSession {
       .then(async () => {
         if (this.disposed && !allowDisposed) return;
         try {
+          if (!this.projectFiles) {
+            if ((await this.storeLocal(doc)) && this.state.doc === doc) {
+              this.hasLocalChanges = false;
+              this.publish({ syncStatus: "saved" });
+            }
+            return;
+          }
           const deletedIds = new Set(this.deletedIds);
           const synced = await syncProjectNotes(
             doc,
@@ -325,6 +379,10 @@ export class NoteSession {
   }
 
   private queueMarkdownSync(locale: Locale): Promise<void> {
+    if (!this.projectFiles) {
+      if (!this.disposed) this.publish({ syncStatus: "saved" });
+      return this.writeQueue;
+    }
     this.writeQueue = this.writeQueue.then(async () => {
       if (this.disposed) return;
       try {

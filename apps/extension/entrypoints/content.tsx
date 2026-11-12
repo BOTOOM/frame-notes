@@ -9,8 +9,8 @@ import type {
 import { currentLocale, startLocalePreferenceWatch, subscribeLocale } from "../src/i18n";
 import { parseFps } from "../src/model";
 import { NotePanel, type PanelAction, type PanelActionRef } from "../src/panel";
-import { resizeActionForKey } from "../src/panel-layout";
 import { NoteSession, type PlayerCommandValue, type PlayerState } from "../src/session";
+import { handlePanelKeyboardEvent, isShortcut } from "../src/shortcuts";
 import "../src/content.css";
 
 interface BridgeEnvelope {
@@ -60,19 +60,6 @@ function projectFromHash(hash: string): string | null {
   } catch {
     return null;
   }
-}
-
-function isShortcut(event: KeyboardEvent): PanelAction | null {
-  const unmodified = !event.ctrlKey && !event.metaKey;
-  if (event.altKey && unmodified && !event.shiftKey) {
-    if (event.code === "KeyN") return "new";
-    if (event.code === "KeyI") return "start";
-    if (event.code === "KeyO") return "end";
-    if (event.code === "KeyV") return "dictate";
-    if (event.code === "KeyM") return "minimize";
-  }
-  if (event.altKey && event.shiftKey && unmodified && event.code === "KeyC") return "copy";
-  return null;
 }
 
 function sameOriginFrame(source: MessageEventSource | null): boolean {
@@ -161,79 +148,8 @@ export default defineContentScript({
       activeProject = null;
     };
 
-    const handleShortcut = (event: KeyboardEvent) => {
-      if (actionRef.deleteAllDialogOpen) {
-        event.stopImmediatePropagation();
-        if (event.type === "keydown") {
-          if (event.key === "Escape") {
-            event.preventDefault();
-            actionRef.current?.("escape");
-          } else if (event.key === "Tab") {
-            event.preventDefault();
-            actionRef.current?.(event.shiftKey ? "dialog-tab-previous" : "dialog-tab-next");
-          } else if (isShortcut(event)) {
-            event.preventDefault();
-          }
-        }
-        return;
-      }
-      const path = event.composedPath();
-      const fromPanel = activeHost !== null && path.includes(activeHost);
-      if (fromPanel) {
-        event.stopImmediatePropagation();
-        if (event.type !== "keydown") return;
-        const target = path[0];
-        const isEditor =
-          target instanceof HTMLTextAreaElement ||
-          (target instanceof HTMLInputElement && target.type === "text");
-        if (event.key === "Escape") {
-          event.preventDefault();
-          actionRef.current?.("escape");
-          return;
-        }
-        if (target instanceof HTMLElement && target.classList.contains("fn-resize-handle")) {
-          const resizeAction = resizeActionForKey(event);
-          if (resizeAction) {
-            event.preventDefault();
-            event.stopPropagation();
-            actionRef.current?.(resizeAction);
-          }
-          return;
-        }
-        if (actionRef.languageMenuOpen) {
-          const menuAction =
-            event.key === "ArrowDown"
-              ? "locale-next"
-              : event.key === "ArrowUp"
-                ? "locale-previous"
-                : event.key === "Home"
-                  ? "locale-first"
-                  : event.key === "End"
-                    ? "locale-last"
-                    : null;
-          if (menuAction) {
-            event.preventDefault();
-            actionRef.current?.(menuAction);
-            return;
-          }
-        }
-        const action = isShortcut(event);
-        if (action) {
-          event.preventDefault();
-          actionRef.current?.(action);
-        } else if (event.key === "Enter" && !event.shiftKey && isEditor) {
-          event.preventDefault();
-          actionRef.current?.("save");
-        }
-        return;
-      }
-      if (event.type !== "keydown") return;
-      const action = isShortcut(event);
-      if (!action) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      actionRef.current?.(action);
-    };
+    const handleShortcut = (event: KeyboardEvent) =>
+      handlePanelKeyboardEvent(event, actionRef, activeHost);
 
     ctx.addEventListener(window, "keydown", handleShortcut, { capture: true });
     ctx.addEventListener(window, "keyup", handleShortcut, { capture: true });
